@@ -25,7 +25,8 @@
 - [ ] Phase 0 — **ปัญหาค้าง**: SOME vs f0 ต่างกัน 1 octave ใน 63/807 โน้ตของ song02 — ต้องฟัง testdata/out2/compare_some.wav ตัดสินว่า SOME หรือ torchcrepe ผิด
 - [x] Phase 0 — RMVPE ลองแล้ว: เร็ว (1.9 s/290 s) ตรงกับ crepe ในโน้ตที่ SOME ต่าง octave 55/63 → SOME น่าจะผิด; ยังไม่ commit
 - [x] Phase 0 — Beat This! รันจริงแล้ว: เร็ว (1.3 s) แต่ tempo กระโดด ≈128↔64 BPM ต้องมี tempo normalization — รอผู้ใช้ฟัง beats_click.wav; ยังไม่ commit
-- [ ] Phase 0 — ลอง ROSVOT, BTC (chord), karaoke/de-reverb
+- [x] Phase 0 — BTC รันได้ (คอร์ด diatonic D major ครบ, flicker 53/175 ช่วง ต้อง smoothing) — รอผู้ใช้ตรวจคอร์ด; ยังไม่ commit
+- [ ] Phase 0 — ลอง ROSVOT, karaoke/de-reverb, ทดสอบเพลงที่ยากกว่า
 - [ ] Phase 0 — spike ทดสอบโมเดลทีละตัว: separation, RMVPE, torchcrepe, SOME, Beat This!, essentia, BTC, faster-whisper
 - [ ] Phase 0 — วัดเวลา/VRAM จริง แล้วอัปเดตตารางใน plan.md หัวข้อ 18
 - [ ] Phase 0 — เตรียมชุดเพลงทดสอบ 10–20 เพลงที่แกะมือไว้ (ground truth)

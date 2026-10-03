@@ -98,3 +98,12 @@
   - สมมติฐาน (ยังไม่ได้ฟังยืนยัน): เพลงจริงน่าจะ ≈ 128 BPM แล้วโมเดลวาง beat แบบ half-time ในบางท่อน (ห้องละ 2 beat) → ต้องมีขั้น **tempo normalization** (รวมเป็น tempo เดียวต่อท่อน/ทั้งเพลง) และ UI ให้ผู้ใช้กด ×2 / ÷2 ได้ (plan.md หัวข้อ 6 ขั้น [3] ควรเพิ่มข้อนี้)
   - ไฟล์ฟัง `testdata/out2/beats_click.wav` (ซ้าย = เพลง, ขวา = คลิก: downbeat สูง / beat ต่ำ) รอผู้ใช้ฟังยืนยันว่าคลิกตรงจังหวะไหม และท่อนไหนเป็น half-time
 - Beat This! เบามาก (0.5 GB / 1.3 s) → รันบน GPU ขนานกับงานอื่นได้สบาย
+
+## 2026-10-03 — Spike BTC (chord recognition, song02 instrumental)
+- ที่มา: https://github.com/jayg996/BTC-ISMIR19 (MIT) clone ที่ `third_party/BTC` (gitignore); **น้ำหนักมากับ repo** (`test/btc_model.pt` majmin 25 คลาส, `test/btc_model_large_voca.pt` 170 คลาส) ไม่ต้องดาวน์โหลดเพิ่ม
+- อินพุต: instrumental stem ("other" จาก Mel-Band RoFormer) ของ song02 แปลงเป็น wav 22.05 kHz; ลง `pretty_midi mir_eval pandas pyrubberband` เพิ่มใน `.venv-spike`
+- **โค้ดเก่า ต้องแก้ 3 จุดในสำเนา third_party (ไม่ใช่โค้ดของเรา)**: `yaml.load(f)` → `yaml.safe_load(f)` (utils/hparams.py), `np.float/np.int/np.bool` → builtin (utils/chords.py, ฯลฯ — numpy 2.x ลบ alias แล้ว), `torch.load(...)` → `weights_only=False` (test.py; ไฟล์น้ำหนักมี numpy scalar ปน — โหลดได้เฉพาะไฟล์ที่เชื่อถือ) → ตอนทำจริงควร vendor/ปรับโค้ด BTC เป็นโมดูลของเราเอง แทนการใช้ test.py
+- เวลา: ทั้งสคริปต์ ≈ 7.4 s ต่อ 290 s (รวมคำนวณ CQT ฝั่ง CPU + โหลดโมเดล + infer); ยังไม่ได้แยกวัด VRAM
+- ผล majmin: 175 ช่วง, median 1.76 s, **สั้นกว่า 1 s = 53 ช่วง (flicker)**; เวลาส่วนใหญ่: D 22%, A 16%, F♯m 15%, G 14%, Em 13%, Bm 12%, N 3% → ชุดคอร์ด **D–A–F♯m–G–Em–Bm เป็น diatonic ของ D major ครบ** สอดคล้องกับโน้ตเมโลดี้ของ song02 (D4/F♯4/E4/A4 ที่พบบ่อย) → น่าเชื่อว่าเพลงอยู่คีย์ D major (ยังไม่ได้วิเคราะห์ key จริง และยังไม่ได้ฟังตรวจคอร์ด)
+- ผล large_voca: 199 ช่วง, สั้นกว่า 1 s = 74 ช่วง; ให้คอร์ดละเอียดขึ้น (m7, sus4, maj7, 7) เช่น Em7 14%, F♯m7 14%, Bm7 11%, Asus4 7% — ละเอียดกว่าแต่ flicker มากกว่า
+- ข้อสรุปเบื้องต้น: BTC ใช้ได้ แต่ **ต้องทำ beat-synchronous smoothing** (บังคับเปลี่ยนคอร์ดตรง beat/downbeat จาก Beat This!) และ key-aware prior ตาม plan.md หัวข้อ 6 ขั้น [5] เพื่อลด flicker; ยังไม่ได้ทดสอบ slash chord (ต้องใช้ bass stem แยก); ความถูกต้องของคอร์ดยังไม่ได้ตรวจ (ต้องให้ผู้ใช้ที่รู้คอร์ดเพลงนี้เทียบ)
