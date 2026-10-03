@@ -40,6 +40,7 @@ def plan_stages(karaoke: bool, dereverb: bool) -> list[str]:
 
 
 def run_analysis(src: Path, out: Path, *, karaoke: bool = False, dereverb: bool = False,
+                 fix_octave: bool = True, min_dur_ms: float = 0.0, merge_gap_ms: float = 0.0,
                  cache: StageCache | None = None, on_event: Callable[[dict], None] = lambda e: None,
                  cancelled: Callable[[], bool] = lambda: False) -> dict:
     cache = cache or StageCache()
@@ -132,9 +133,12 @@ def run_analysis(src: Path, out: Path, *, karaoke: bool = False, dereverb: bool 
         end(stage, t0, bool(d))
         return val
 
-    # --- notes (SOME ดิบ cache ได้; annotate เบา คำนวณใหม่ทุกครั้ง) ---
+    # --- notes (SOME ดิบ cache ได้; annotate/refine เบา คำนวณใหม่ทุกครั้ง) ---
     raw = cached_json("notes", lambda: notes_stage.transcribe(melody), model=SOME_CKPT.name)
-    notes = notes_stage.annotate(raw, f0)
+    (out / "analysis" / "notes_raw.json").write_text(json.dumps(raw), encoding="utf-8")  # ให้ retranscribe ใช้ซ้ำโดยไม่รัน SOME ใหม่
+    tuning = notes_stage.estimate_tuning(f0)
+    notes = notes_stage.annotate(notes_stage.refine(raw, min_dur_ms=min_dur_ms, merge_gap_ms=merge_gap_ms), f0,
+                                 fix_octave=fix_octave, tuning_cents=tuning)
 
     # --- rhythm ---
     rhythm = cached_json("rhythm", lambda: rhythm_stage.analyze_rhythm(wav), model="beat_this_final0")
@@ -143,8 +147,9 @@ def run_analysis(src: Path, out: Path, *, karaoke: bool = False, dereverb: bool 
     song = build_song(
         source={"type": "file", "path": str(src), "title": src.stem,
                 "duration": round(float(f0["times"][-1]), 1), "audio_hash": sha},
-        notes=notes, rhythm=rhythm, key=key, f0_ref="analysis/f0.npz",
-        meta={"karaoke": karaoke, "dereverb": dereverb, "melody_source": melody.name,
+        notes=notes, rhythm=rhythm, key=key, f0_ref="analysis/f0.npz", tuning_offset_cents=tuning,
+        meta={"karaoke": karaoke, "dereverb": dereverb, "melody_source": melody.name, "fix_octave": fix_octave,
+              "min_dur_ms": min_dur_ms, "merge_gap_ms": merge_gap_ms,
               "timings_s": timings, "cached_stages": cached_stages},
     )
     save_song(song, out / "song.json")

@@ -6,6 +6,9 @@ import mido
 import numpy as np
 
 
+QUANT_DIV = 4  # ช่องต่อ beat ของการ quantize (4 = 1/16 ใน 4/4)
+
+
 def _beat_positions(notes: list[dict], beats: list[dict]) -> None:
     """เติม start_beat / dur_beats (นับ beat จาก beat แรก = 0) โดย interpolate ตามเวลาของ beat grid จริง"""
     if len(beats) < 2:
@@ -24,14 +27,19 @@ def _beat_positions(notes: list[dict], beats: list[dict]) -> None:
     for n in notes:
         s, e = pos(n["start"]), pos(n["end"])
         n["start_beat"], n["dur_beats"] = round(s, 3), round(e - s, 3)
+        # quantize เข้าตาราง 1/4 beat (16th ใน 4/4) โดยเก็บเวลาจริงไว้ครบ — แสดงได้ทั้ง "ตามจริง" และ "quantized"
+        qs = round(s * QUANT_DIV) / QUANT_DIV
+        qe = max(qs + 1 / QUANT_DIV, round(e * QUANT_DIV) / QUANT_DIV)
+        n["start_beat_q"], n["dur_beats_q"] = round(qs, 3), round(qe - qs, 3)
 
 
 def build_song(*, source: dict, notes: list[dict], rhythm: dict, key: dict | None,
-               f0_ref: str | None, meta: dict) -> dict:
+               f0_ref: str | None, meta: dict, tuning_offset_cents: float = 0.0) -> dict:
     _beat_positions(notes, rhythm.get("beats", []))
     return {
         "version": 1,
         "source": source,
+        "tuning_offset_cents": tuning_offset_cents,
         "key": key,
         "tempo": {"bpm": rhythm.get("bpm"), "bpm_raw_median": rhythm.get("bpm_raw_median"),
                   "unstable": rhythm.get("tempo_unstable")},

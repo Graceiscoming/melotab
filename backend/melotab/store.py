@@ -3,6 +3,8 @@
 Projects/<id>/ : project.json, source/<ไฟล์เดิม>, audio/, analysis/, song.json, melody.mid
 ยังไม่มี SQLite index / autosave / history (ขั้น "Project save/load" ถัดไป)
 """
+from __future__ import annotations
+
 import json
 import re
 import shutil
@@ -92,6 +94,38 @@ class ProjectStore:
         d = self.path(project_id)
         if not (d / "project.json").exists():
             raise FileNotFoundError(project_id)
+        self._snapshot(d)
         tmp = d / "song.json.tmp"
         tmp.write_text(json.dumps(song, ensure_ascii=False, indent=1), encoding="utf-8")
         tmp.replace(d / "song.json")
+
+    HISTORY_EVERY_S = 120
+    HISTORY_KEEP = 20
+
+    def _snapshot(self, d: Path) -> None:
+        """เก็บ song.json เดิมไว้ใน history/ (ไม่ถี่กว่าทุก 120 วินาที, เก็บ 20 ชุดล่าสุด) เพื่อกลับไปเวอร์ชันก่อนได้"""
+        cur = d / "song.json"
+        if not cur.exists():
+            return
+        hist = d / "history"
+        hist.mkdir(exist_ok=True)
+        snaps = sorted(hist.glob("song-*.json"))
+        if snaps and time.time() - snaps[-1].stat().st_mtime < self.HISTORY_EVERY_S:
+            return
+        shutil.copy2(cur, hist / f"song-{time.strftime('%Y%m%d-%H%M%S')}.json")
+        for old in sorted(hist.glob("song-*.json"))[:-self.HISTORY_KEEP]:
+            old.unlink()
+
+    def history(self, project_id: str) -> list[str]:
+        h = self.path(project_id) / "history"
+        return [p.name for p in sorted(h.glob("song-*.json"), reverse=True)] if h.exists() else []
+
+    def restore(self, project_id: str, name: str) -> dict:
+        if not re.fullmatch(r"song-\d{8}-\d{6}\.json", name):
+            raise ValueError("ชื่อ snapshot ไม่ถูกต้อง")
+        f = self.path(project_id) / "history" / name
+        if not f.exists():
+            raise FileNotFoundError(name)
+        song = json.loads(f.read_text(encoding="utf-8"))
+        self.save_song(project_id, song)
+        return song

@@ -20,6 +20,7 @@ from ..analysis import run_analysis
 from ..audio import to_preview_mp3
 from ..cache import StageCache
 from ..jobs.manager import Job, JobManager
+from ..retranscribe import retranscribe
 from ..store import ProjectStore
 
 
@@ -31,6 +32,15 @@ class NewProject(BaseModel):
 class AnalyzeOptions(BaseModel):
     karaoke: bool = False
     dereverb: bool = False
+    fix_octave: bool = True
+    min_dur_ms: float = 0.0
+    merge_gap_ms: float = 0.0
+
+
+class RetranscribeOptions(BaseModel):
+    fix_octave: bool = True
+    min_dur_ms: float = 0.0
+    merge_gap_ms: float = 0.0
 
 
 class _Hub:
@@ -56,6 +66,8 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
     def default_runner(job: Job, on_event, cancelled) -> dict:
         return run_analysis(store.source_path(job.project_id), store.path(job.project_id),
                             karaoke=job.params.get("karaoke", False), dereverb=job.params.get("dereverb", False),
+                            fix_octave=job.params.get("fix_octave", True), min_dur_ms=job.params.get("min_dur_ms", 0.0),
+                            merge_gap_ms=job.params.get("merge_gap_ms", 0.0),
                             cache=cache, on_event=on_event, cancelled=cancelled)
 
     manager = JobManager(runner or default_runner)
@@ -133,6 +145,29 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
         except (FileNotFoundError, ValueError):
             raise HTTPException(404, "ไม่พบโปรเจกต์")
         return {"ok": True, "notes": len(song["notes"])}
+
+    @app.post("/projects/{pid}/retranscribe")
+    def retranscribe_project(pid: str, opts: RetranscribeOptions) -> dict:
+        """แกะโน้ตใหม่จากผลดิบที่เก็บไว้ (เร็ว ไม่รันโมเดลซ้ำ) — โน้ตที่แก้ไว้จะถูกแทนที่"""
+        try:
+            store.meta(pid)
+            return retranscribe(store.path(pid), **opts.model_dump())
+        except (FileNotFoundError, ValueError) as e:
+            raise HTTPException(404, str(e))
+
+    @app.get("/projects/{pid}/history")
+    def song_history(pid: str) -> list[str]:
+        try:
+            return store.history(pid)
+        except ValueError:
+            raise HTTPException(404, "ไม่พบโปรเจกต์")
+
+    @app.post("/projects/{pid}/history/{name}/restore")
+    def restore_history(pid: str, name: str) -> dict:
+        try:
+            return store.restore(pid, name)
+        except (FileNotFoundError, ValueError):
+            raise HTTPException(404, "ไม่พบ snapshot")
 
     @app.post("/projects/{pid}/analyze", status_code=202)
     def analyze(pid: str, opts: AnalyzeOptions | None = None) -> dict:

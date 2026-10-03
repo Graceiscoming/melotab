@@ -31,6 +31,10 @@ export const api = {
     fetch(`${API}/projects/${encodeURIComponent(id)}/song`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(song),
     }).then(j<{ ok: boolean; notes: number }>),
+  retranscribe: (id: string, opts: { fix_octave: boolean; min_dur_ms: number; merge_gap_ms: number }) =>
+    post(`/projects/${encodeURIComponent(id)}/retranscribe`, opts).then(j<Song>),
+  history: (id: string) => fetch(`${API}/projects/${encodeURIComponent(id)}/history`).then(j<string[]>),
+  restore: (id: string, name: string) => post(`/projects/${encodeURIComponent(id)}/history/${name}/restore`).then(j<Song>),
   audioUrl: (id: string, stem: string) => `${API}/audio/${encodeURIComponent(id)}/${stem}`,
 }
 

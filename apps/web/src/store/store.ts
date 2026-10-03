@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api, wsUrl } from '../api/client'
-import type { F0Curve, JobInfo, ProjectMeta, Song, StageEvent, SystemStats } from '../types'
+import { withBeatPositions } from '../theory/rhythm'
+import type { F0Curve, JobInfo, Note, ProjectMeta, Song, StageEvent, SystemStats } from '../types'
 
 export interface StageRow {
   stage: string
@@ -14,7 +15,13 @@ interface View {
   follow: boolean
   pxPerSec: number
   labels: boolean
+  snap: boolean
 }
+
+export type SaveState = 'saved' | 'dirty' | 'saving' | 'error'
+const HISTORY_LIMIT = 300
+const AUTOSAVE_MS = 1200
+let saveTimer: number | undefined
 
 interface State {
   // เชื่อมต่อ backend
@@ -33,7 +40,18 @@ interface State {
   // การดู
   view: View
   selectedNoteId: string | null
+  // การแก้ไข
+  past: Note[][]
+  future: Note[][]
+  saveState: SaveState
+  focus: { t: number; n: number } | null // ขอให้ piano roll เลื่อนไปที่เวลานี้ (n เพิ่มทุกครั้งเพื่อให้ effect ทำงานซ้ำได้)
 
+  editNotes: (fn: (notes: Note[]) => Note[], select?: string | null) => void
+  undo: () => void
+  redo: () => void
+  replaceSong: (song: Song) => void // ใช้หลัง retranscribe / restore: ล้างประวัติ undo
+  requestFocus: (t: number) => void
+  saveNow: () => Promise<void>
   refreshProjects: () => Promise<void>
   openProject: (id: string) => Promise<void>
   closeProject: () => void
@@ -41,6 +59,11 @@ interface State {
   setView: (v: Partial<View>) => void
   selectNote: (id: string | null) => void
   connect: () => () => void
+}
+
+function scheduleSave(get: () => State) {
+  clearTimeout(saveTimer)
+  saveTimer = window.setTimeout(() => void get().saveNow(), AUTOSAVE_MS)
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -54,8 +77,53 @@ export const useStore = create<State>((set, get) => ({
   error: null,
   jobs: {},
   stageRows: {},
-  view: { showF0: true, highlightKey: true, follow: true, pxPerSec: 90, labels: true },
+  view: { showF0: true, highlightKey: true, follow: true, pxPerSec: 90, labels: true, snap: true },
   selectedNoteId: null,
+  past: [],
+  future: [],
+  saveState: 'saved',
+  focus: null,
+
+  editNotes: (fn, select) => {
+    const { song, past } = get()
+    if (!song) return
+    const next = withBeatPositions(fn(song.notes), song.beats)
+    if (next === song.notes) return
+    set({
+      song: { ...song, notes: next },
+      past: [...past, song.notes].slice(-HISTORY_LIMIT),
+      future: [],
+      saveState: 'dirty',
+      ...(select !== undefined ? { selectedNoteId: select } : {}),
+    })
+    scheduleSave(get)
+  },
+  undo: () => {
+    const { song, past, future } = get()
+    if (!song || past.length === 0) return
+    set({ song: { ...song, notes: past[past.length - 1] }, past: past.slice(0, -1), future: [song.notes, ...future], saveState: 'dirty' })
+    scheduleSave(get)
+  },
+  redo: () => {
+    const { song, past, future } = get()
+    if (!song || future.length === 0) return
+    set({ song: { ...song, notes: future[0] }, past: [...past, song.notes], future: future.slice(1), saveState: 'dirty' })
+    scheduleSave(get)
+  },
+  replaceSong: (song) => set({ song, past: [], future: [], saveState: 'saved', selectedNoteId: null }),
+  requestFocus: (t) => set((s) => ({ focus: { t, n: (s.focus?.n ?? 0) + 1 } })),
+  saveNow: async () => {
+    clearTimeout(saveTimer)
+    const { song, currentId } = get()
+    if (!song || !currentId) return
+    set({ saveState: 'saving' })
+    try {
+      await api.saveSong(currentId, song)
+      set({ saveState: get().song === song ? 'saved' : 'dirty' })
+    } catch (e) {
+      set({ saveState: 'error', error: `บันทึกไม่สำเร็จ: ${e instanceof Error ? e.message : e}` })
+    }
+  },
 
   setError: (error) => set({ error }),
   setView: (v) => set((s) => ({ view: { ...s.view, ...v } })),
@@ -76,13 +144,16 @@ export const useStore = create<State>((set, get) => ({
       if (p.song) {
         try { f0 = await api.getF0(id) } catch { /* ยังไม่มี f0 */ }
       }
-      set({ currentId: id, song: p.song, f0, selectedNoteId: null, error: null })
+      set({ currentId: id, song: p.song, f0, selectedNoteId: null, error: null, past: [], future: [], saveState: 'saved' })
     } catch (e) {
       set({ error: `เปิดโปรเจกต์ไม่สำเร็จ: ${e instanceof Error ? e.message : e}` })
     }
   },
 
-  closeProject: () => set({ currentId: null, song: null, f0: null, selectedNoteId: null }),
+  closeProject: () => {
+    void get().saveNow() // กันงานแก้ไขหายตอนกลับหน้ารวมโปรเจกต์
+    set({ currentId: null, song: null, f0: null, selectedNoteId: null, past: [], future: [] })
+  },
 
   connect: () => {
     let ws: WebSocket | null = null

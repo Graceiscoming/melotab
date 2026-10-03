@@ -7,9 +7,12 @@ export interface Note {
   end: number
   start_beat?: number
   dur_beats?: number
+  start_beat_q?: number
+  dur_beats_q?: number
   cents_offset: number | null
   confidence: number
   octave_suspect: boolean
+  octave_fixed?: boolean
   edited: boolean
 }
 
@@ -24,6 +27,7 @@ export interface KeyInfo {
 
 export interface Song {
   version: number
+  tuning_offset_cents?: number
   source: { title: string; duration: number; audio_hash: string; path?: string }
   key: KeyInfo | null
   tempo: { bpm: number | null; bpm_raw_median: number | null; unstable: boolean | null }
@@ -31,7 +35,7 @@ export interface Song {
   beats: Beat[]
   notes: Note[]
   f0_ref: string | null
-  meta: { karaoke: boolean; dereverb: boolean; melody_source: string; timings_s: Record<string, number>; cached_stages: string[] }
+  meta: { karaoke: boolean; dereverb: boolean; melody_source: string; timings_s: Record<string, number>; cached_stages: string[]; fix_octave?: boolean; min_dur_ms?: number; merge_gap_ms?: number }
   [extra: string]: unknown
 }
 

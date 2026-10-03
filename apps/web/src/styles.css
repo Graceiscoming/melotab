@@ -52,3 +52,11 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); }
 .link { background: none; border: 0; padding: 0; color: var(--text); text-decoration: underline dotted; }
 .jobpanel { position: absolute; bottom: 100%; left: 0; min-width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px 8px 0 0; padding: 10px 14px; }
+
+.warnbtn { border-color: var(--warn); color: var(--warn); }
+.sidepanel { position: absolute; z-index: 5; right: 14px; top: 96px; width: 360px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 28px #0008; }
+.sidepanel label { display: flex; flex-direction: column; gap: 2px; }
+.sidepanel ul { margin: 0; padding-left: 0; list-style: none; max-height: 240px; overflow: auto; }
+.sidepanel li { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+.workspace { position: relative; }

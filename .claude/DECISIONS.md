@@ -167,3 +167,30 @@
 - เทสต์: vitest 7 ข้อ (ชื่อโน้ต/สเกล/hit-test) + backend pytest 14 ข้อ
 - **ยังไม่ได้ตรวจ**: เสียงที่ออกจริงจากลำโพง (ทดสอบได้แค่ว่า transport เดินเวลาในโหมด headless ไม่ได้ฟัง), ความลื่น 60fps บนจอจริง, การลากเลื่อน/ซูมด้วยเมาส์จริง (ทดสอบแค่คลิก), ไม่ได้ทดสอบบน Edge/Firefox
 - ข้อจำกัดที่รู้: bundle JS > 500 kB (PixiJS) ยังไม่ code-split; ยังไม่มี slow-down/loop UI; ยังไม่แก้โน้ตได้ (Phase 2); ยังไม่มี SQLite index/autosave/history (เลื่อนไปทำพร้อมการแก้ไขโน้ต)
+
+## 2026-10-03 — Phase 2: ความแม่นยำ + การแก้โน้ต
+**Backend**
+- `fix_octave` (ค่าเริ่มต้นเปิด): ถ้า median f0 (RMVPE) ในช่วงโน้ตต่างจากโน้ตเป็นพหุคูณ 12 semitone (±1) จะย้ายโน้ตไป octave ของ f0 แล้วติดธง `octave_fixed` + จำกัด confidence ≤ 0.6 ให้คนตรวจ
+  - **วัดผล** (`backend/scripts/eval_octave_fix.py`, song02, reference = โน้ตจากเสียงที่ผ่าน karaoke ซึ่ง **ไม่ใช่ ground truth**): ธง octave สงสัย 73 → 11; COnP F1 เทียบ reference 0.728 → 0.786 (P 0.711→0.767, R 0.746→0.805)
+  - ถ้าใช้ karaoke อยู่แล้ว ธง octave เหลือแค่ ~3 โน้ต (ไม่ค่อยมีงานให้ fix)
+- `estimate_tuning`: ฮิสโทแกรม cents ห่างจากครึ่งเสียงของ f0 → tuning offset เทียบ A=440 (หยาบ ±~10 cents; song01 ได้ −1¢) ใช้ชดเชยก่อนคำนวณ `cents_offset` ไม่เปลี่ยนชื่อโน้ต
+- Quantize: `start_beat_q` / `dur_beats_q` ปัดเข้ากริด 1/16 โดยเก็บเวลาจริงไว้ครบ (ยังไม่มีสวิตช์ "แสดงแบบ quantized" บน piano roll เพราะ hit-test ใช้เวลาจริง — โชว์ค่า quantized ใน note panel แทน)
+- `refine()` + `POST /projects/{id}/retranscribe`: ตัดโน้ตสั้น / รวมโน้ตเดิมที่ห่างไม่เกิน X ms แล้วแกะใหม่จากผลดิบ (ไม่รันโมเดล เร็ว)
+- **บั๊กที่เจอและแก้**: `refine()` รุ่นแรกรวมโน้ตซ้ำที่ติดกันพอดี (ช่องว่าง 0) แม้ค่าเริ่มต้น → โน้ตหายราว 22% (807→631) เจอเพราะจำนวนโน้ตไม่ตรงกับ Phase 0; แก้ให้รวมเมื่อ merge_gap_ms > 0 เท่านั้น + เทสต์กันซ้ำ
+- history: `ProjectStore._snapshot` เก็บ song.json เดิมก่อนบันทึกทับ (≥ ทุก 120 s, เก็บ 20 ชุด) + `GET /projects/{id}/history`, `POST .../history/{name}/restore` (ตรวจชื่อไฟล์กัน path traversal)
+- `melotab/evaluate.py` (mir_eval): Note COnP/COnPOff (onset ±50 ms, pitch ±50 cents), f0 RPA/RCA/OA; CLI `python -m melotab.evaluate --ref gt.mid --est song.json` — **ยังไม่มี ground truth จริง** จึงยังไม่ได้วัด Note F1 ตามเกณฑ์ >80% ใน plan หัวข้อ 24 (ต้องใช้ MIDI ที่ผู้ใช้แกะมือ)
+
+**Frontend**
+- แก้บน Piano Roll: ลากขึ้น/ลง = เปลี่ยน pitch, ลากขอบซ้าย/ขวา = ปรับเวลา (snap ตาม beat grid 1/16 เปิด/ปิดได้, มีเส้นพรีวิว), ดับเบิลคลิกที่ว่าง = เพิ่มโน้ต; คีย์ลัด ↑↓ (Shift = octave), Delete, S แบ่งที่ playhead, M รวมกับตัวถัดไป, N ข้ามไปโน้ตที่ควรตรวจ, Ctrl+Z/Y
+- undo/redo ไม่จำกัดจริงๆ แต่เก็บล่าสุด 300 snapshot (ทั้ง array โน้ต); autosave debounce 1.2 s + แสดงสถานะ; กลับหน้ารวมโปรเจกต์/ปิดแท็บจะบันทึกก่อน
+- โน้ตที่ผู้ใช้แก้ถูกตั้ง `edited: true`, confidence 1, ล้างธง octave (คนยืนยันแล้ว)
+- แผง "ความละเอียดโน้ต" (slider ตัดโน้ตสั้น / รวมโน้ตซ้ำ / fix octave → retranscribe พร้อมเตือนถ้ามีโน้ตที่แก้ไว้) และแผง "เวอร์ชันก่อนหน้า" (กู้คืน)
+- แสดง tuning offset, quantized beat ของโน้ตที่เลือก, ธง "ระบบย้าย octave ให้"
+- **ตรวจจริงด้วย Chrome** (`npm run e2e:edit`, `e2e:sens`): ลาก pitch (+2), autosave ถึง backend, undo/redo, ลากขอบ, S/M, ลูกศร, Delete, ดับเบิลคลิก, N, ย้อนกลับครบ, retranscribe ลด/คืนจำนวนโน้ต — ผ่านทั้งหมด ไม่มี console error
+  - ข้อสังเกตเรื่องเทสต์: `puppeteer mouse.click({clickCount:2})` ไม่ยิง `dblclick` (ต้องส่งผ่าน CDP clickCount 1→2) เคยทำให้เทสต์ล้มโดยแอปไม่ได้ผิด
+- เทสต์ทั้งหมด: pytest 26, vitest 18 (edits/rhythm/notes/hit-test), e2e 15+6 ข้อ
+
+**ที่ยังไม่ได้ทำ/ข้อจำกัดของ Phase 2**
+- ไม่มี f0 ensemble หลายโมเดล (ใช้ RMVPE ตัวเดียวเป็น f0 หลัก — torchcrepe ใช้เป็นแค่ตัวเทียบตอนทดลอง Phase 0) ผลของ fix_octave จึงเชื่อ RMVPE
+- ยังไม่มี key-aware snap ของโน้ตกำกวมครึ่งเสียง (SOME ให้โน้ตเต็มครึ่งเสียงอยู่แล้ว); ยังไม่ได้วัด Note F1 กับ ground truth จริง; SQLite index ยังไม่ทำ (โปรเจกต์เป็นโฟลเดอร์ พอสำหรับตอนนี้)
+- แก้โน้ตหลายตัวพร้อมกัน (multi-select) ยังไม่มี; ไม่ได้ฟังเสียงจริง (ตรวจพฤติกรรม UI ไม่ใช่คุณภาพเสียง)

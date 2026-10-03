@@ -132,3 +132,21 @@ def test_upload_creates_project_and_song_put_roundtrip(tmp_path):
         assert c.get(f"/projects/{pid}").json()["song"]["notes"][0]["id"] == "n1"
         assert c.put(f"/projects/{pid}/song", json={"x": 1}).status_code == 422
         assert c.put("/projects/nope/song", json={"notes": []}).status_code == 404
+
+
+def test_history_snapshots_and_restore(tmp_path, audio_file):
+    from melotab.store import ProjectStore
+    st = ProjectStore(tmp_path / "P")
+    pid = st.create(audio_file)["id"]
+    st.save_song(pid, {"notes": [{"id": "v1"}]})
+    assert st.history(pid) == []                              # ครั้งแรกยังไม่มีของเก่าให้เก็บ
+    st.save_song(pid, {"notes": [{"id": "v2"}]})
+    snaps = st.history(pid)
+    assert len(snaps) == 1
+    st.save_song(pid, {"notes": [{"id": "v3"}]})              # ภายใน 120 s → ไม่เก็บซ้ำ
+    assert len(st.history(pid)) == 1
+    assert st.restore(pid, snaps[0])["notes"][0]["id"] == "v1"
+    assert st.song(pid)["notes"][0]["id"] == "v1"
+    import pytest as _p
+    with _p.raises(ValueError):
+        st.restore(pid, "../../etc/passwd")
