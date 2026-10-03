@@ -41,3 +41,15 @@
 - **whisperx (และอาจรวมถึงแพ็กเกจที่ pin torch) ทำให้ torch เปลี่ยนเป็นรุ่น CPU เงียบๆ** → หลังลงอะไรก็ตามต้องเช็ก `torch.cuda.is_available()` ทุกครั้ง
 - torch ของ venv หลัก (2.14.1+cu130) กับ whisperx (ต้องการ 2.8.x) ไม่เข้ากัน → ถ้าจะใช้ whisperx ใน venv หลักต้องลดเป็น torch 2.8.0+cu128 ทั้ง venv หรือแยก lyrics เป็น worker/venv ของตัวเอง (ตัดสินใจภายหลัง)
 - `backend/requirements-spike-lock.txt` = freeze ของ venv ทดลอง
+
+## 2026-10-03 — ผลวัดจริงครั้งแรก (เพลงทดสอบ song01, 48.9 วินาที, ผู้ใช้โหลดมาเอง เพราะ yt-dlp 403 / cookies Chrome-Edge อ่านไม่ได้)
+เครื่อง: RTX 4060 Laptop 8GB, torch 2.14.1+cu130 (venv หลัก) — สคริปต์: `backend/scripts/spike_separation.py`, `spike_f0.py`
+| ขั้น | โมเดล | เวลา | VRAM เพิ่ม (peak − base) |
+|---|---|---|---|
+| Separation | `vocals_mel_band_roformer.ckpt` (audio-separator) | โหลด 70.5 s (รวมดาวน์โหลดโมเดลครั้งแรก), แยก 18.3 s (≈0.37× realtime) | ≈ 3.8 GB (peak รวม ≈ 4.6 GB) |
+| f0 | torchcrepe full + viterbi, hop 10 ms | 2.6 s | ≈ 1.7 GB (peak รวม ≈ 2.55 GB) |
+- ผลสอดคล้องกับตาราง budget ใน plan.md หัวข้อ 18 (separation 3–6 GB, f0 1–2 GB) แต่เป็นเพลงสั้น 49 วินาที; **เพลง 4 นาทีต้องวัดใหม่** (เวลา ≈ ×5; VRAM น่าจะใกล้เดิมเพราะ chunk)
+- f0: voiced 87% (threshold periodicity 0.21 ค่าเริ่มต้น อาจรวมเสียงลม/พยัญชนะ ต้องจูนตอนทำ voicing detection), ช่วงเสียง F♯3–C♯5 median F♯4, โน้ตที่พบบ่อย C♯4 F♯4 G♯4 A♯4 D♯4 → น่าจะเป็นคีย์ F♯ major / D♯ minor (เป็นแค่ข้อสังเกตจากฮิสโทแกรม ยังไม่ได้วิเคราะห์ key จริง)
+- **ยังไม่ได้ตรวจความถูกต้องของโน้ต** (ไม่มี ground truth, ยังไม่ได้ฟังเทียบ), ยังไม่ได้ทดสอบ RMVPE/karaoke/de-reverb
+- โมเดลเก็บที่ `D:\melotab\models\` (gitignore); ไฟล์ทดสอบที่ `testdata/` (ไฟล์เสียงถูก gitignore)
+- หมายเหตุ: ต้องตั้ง `PYTHONIOENCODING=utf-8` เมื่อพิมพ์ชื่อโน้ตที่มี ♯ บน Windows console

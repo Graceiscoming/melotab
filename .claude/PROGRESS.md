@@ -18,7 +18,8 @@
 - [ ] Phase 0 — สร้างโครงสร้างโฟลเดอร์ repo ตามหัวข้อ 21
 - [x] Phase 0 — ลองติดตั้งตัวเสี่ยงใน .venv-spike: beat-this/faster-whisper/whisperx/pythainlp ผ่าน; essentia/madmom ล้มบน Windows; allin1 import ไม่ได้ (ดู DECISIONS.md) — ยังไม่ commit
 - [ ] Phase 0 — ยังไม่ได้ลอง: RMVPE (ต้องดึง repo+weights), SOME, ROSVOT, BTC; แก้ madmom/allin1 หรือหาทางเลือก
-- [ ] Phase 0 — รัน separation + f0 บนเพลงจริง วัด VRAM/เวลา
+- [x] Phase 0 — รัน separation + f0 บนเพลงจริง (song01, 49 s): แยก 18 s / 3.8 GB, f0 2.6 s / 1.7 GB (ดู DECISIONS.md) — ยังไม่ commit
+- [ ] Phase 0 — ตรวจความถูกต้องโน้ต (ฟังเทียบ / ground truth), ลอง RMVPE, SOME, karaoke/de-reverb, วัดเพลงยาว 4 นาที
 - [ ] Phase 0 — spike ทดสอบโมเดลทีละตัว: separation, RMVPE, torchcrepe, SOME, Beat This!, essentia, BTC, faster-whisper
 - [ ] Phase 0 — วัดเวลา/VRAM จริง แล้วอัปเดตตารางใน plan.md หัวข้อ 18
 - [ ] Phase 0 — เตรียมชุดเพลงทดสอบ 10–20 เพลงที่แกะมือไว้ (ground truth)
