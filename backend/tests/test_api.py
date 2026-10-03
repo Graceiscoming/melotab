@@ -1,0 +1,122 @@
+"""เทสต์ API + job manager ด้วย runner ปลอม (ไม่ใช้ GPU/โมเดล)"""
+import time
+
+import pytest
+from fastapi.testclient import TestClient
+
+from melotab.analysis import Cancelled
+from melotab.api.app import create_app
+from melotab.cache import StageCache, make_key
+from melotab.store import ProjectStore
+
+
+def fake_runner(job, on_event, cancelled):
+    for i, name in enumerate(["ingest", "separation", "f0"], 1):
+        if cancelled():
+            raise Cancelled()
+        on_event({"type": "job.stage", "stage": name, "stage_index": i, "stage_total": 3, "status": "start", "overall_pct": (i - 1) * 33.3})
+        time.sleep(0.05)
+        on_event({"type": "job.stage", "stage": name, "stage_index": i, "stage_total": 3, "status": "done", "seconds": 0.05, "overall_pct": i * 33.3})
+    return {}
+
+
+def failing_runner(job, on_event, cancelled):
+    raise RuntimeError("VRAM ไม่พอ")
+
+
+@pytest.fixture
+def audio_file(tmp_path):
+    p = tmp_path / "a.wav"
+    p.write_bytes(b"RIFF....fake")
+    return p
+
+
+def make_client(tmp_path, runner):
+    app = create_app(store=ProjectStore(tmp_path / "Projects"), cache=StageCache(tmp_path / "cache"),
+                     runner=runner, stats_interval=0.05)
+    return TestClient(app)
+
+
+def wait_status(c, jid, want, timeout=5):
+    t = time.time()
+    while time.time() - t < timeout:
+        s = c.get(f"/jobs/{jid}").json()
+        if s["status"] in want:
+            return s
+        time.sleep(0.02)
+    raise AssertionError(f"timeout, last={s}")
+
+
+def test_project_create_and_list(tmp_path, audio_file):
+    with make_client(tmp_path, fake_runner) as c:
+        r = c.post("/projects", json={"source_path": str(audio_file), "title": "เพลงทดสอบ"})
+        assert r.status_code == 201
+        pid = r.json()["id"]
+        assert [p["id"] for p in c.get("/projects").json()] == [pid]
+        assert c.get(f"/projects/{pid}").json()["song"] is None
+
+
+def test_missing_source_is_404_and_bad_id_rejected(tmp_path):
+    with make_client(tmp_path, fake_runner) as c:
+        assert c.post("/projects", json={"source_path": str(tmp_path / "nope.wav")}).status_code == 404
+        assert c.get("/projects/..%2F..%2Fetc").status_code == 404
+        assert c.get("/audio/x/passwd").status_code == 404
+
+
+def test_job_runs_and_streams_events(tmp_path, audio_file):
+    with make_client(tmp_path, fake_runner) as c:
+        pid = c.post("/projects", json={"source_path": str(audio_file)}).json()["id"]
+        with c.websocket_connect("/ws") as ws:
+            assert ws.receive_json()["type"] == "hello"
+            jid = c.post(f"/projects/{pid}/analyze", json={}).json()["id"]
+            seen = set()
+            while "job.done" not in seen:
+                seen.add(ws.receive_json()["type"])
+        assert {"job.queued", "job.stage", "job.done"} <= seen
+        assert wait_status(c, jid, {"done"})["overall_pct"] == 100.0
+
+
+def test_ws_gets_heartbeat_and_system_stats(tmp_path):
+    with make_client(tmp_path, fake_runner) as c, c.websocket_connect("/ws") as ws:
+        types = {ws.receive_json()["type"] for _ in range(6)}
+        assert {"heartbeat", "system.stats"} <= types
+
+
+def test_error_is_reported_readably(tmp_path, audio_file):
+    with make_client(tmp_path, failing_runner) as c:
+        pid = c.post("/projects", json={"source_path": str(audio_file)}).json()["id"]
+        jid = c.post(f"/projects/{pid}/analyze").json()["id"]
+        s = wait_status(c, jid, {"error"})
+        assert "VRAM ไม่พอ" in s["error"]
+        assert c.post(f"/jobs/{jid}/cancel").status_code == 409      # งานจบแล้วยกเลิกไม่ได้
+
+
+def test_cancel_queued_and_running(tmp_path, audio_file):
+    def slow(job, on_event, cancelled):
+        for _ in range(100):
+            if cancelled():
+                raise Cancelled()
+            time.sleep(0.02)
+
+    with make_client(tmp_path, slow) as c:
+        pid = c.post("/projects", json={"source_path": str(audio_file)}).json()["id"]
+        j1 = c.post(f"/projects/{pid}/analyze").json()["id"]
+        j2 = c.post(f"/projects/{pid}/analyze").json()["id"]          # ติดคิวหลัง j1
+        assert c.post(f"/jobs/{j2}/cancel").status_code == 200
+        assert wait_status(c, j2, {"cancelled"})["status"] == "cancelled"
+        wait_status(c, j1, {"running"})
+        assert c.post(f"/jobs/{j1}/cancel").status_code == 200
+        assert wait_status(c, j1, {"cancelled"})["status"] == "cancelled"
+
+
+def test_cache_key_depends_on_params_and_audio(tmp_path):
+    a = make_key("sep", "h1", karaoke=False)
+    assert a == make_key("sep", "h1", karaoke=False)
+    assert a != make_key("sep", "h1", karaoke=True) and a != make_key("sep", "h2", karaoke=False)
+    c = StageCache(tmp_path)
+    assert c.get(a) is None
+    d = c.begin(a)
+    (d / "x.txt").write_text("hi")
+    assert c.get(a) is None                      # ยังไม่ commit = ยังใช้ไม่ได้
+    final = c.commit(a)
+    assert c.get(a) == final and (final / "x.txt").read_text() == "hi"

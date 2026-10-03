@@ -17,8 +17,8 @@
 - [x] Phase 0 — ตั้ง Python env (backend/.venv) + PyTorch cu130 + ชุดแกน (CUDA ใช้ได้, pip check ผ่าน) ยังไม่ commit
 - [x] Phase 1 — โครงสร้าง backend/melotab (config, gpu, audio, pipeline, song, cli) + เทสต์ตรรกะ
 - [x] Phase 1 — CLI `python -m melotab.cli analyze` ไฟล์เสียง → song.json + melody.mid (ลิงก์ YouTube ยังไม่ได้: ติด 403)
-- [ ] Phase 1 — ถัดไป: Job orchestrator + cache content-hash + WebSocket progress (FastAPI)
-- [ ] Phase 1 — Project save/load (โฟลเดอร์ Projects/ + SQLite index)
+- [x] Phase 1 — Job orchestrator + cache content-hash + WebSocket progress + system monitor (FastAPI) — ทดสอบจริงแล้ว (ดู DECISIONS.md)
+- [ ] Phase 1 — Project save/load ส่วนที่เหลือ: SQLite index, autosave, history, PUT /song (มี ProjectStore พื้นฐานแล้ว)
 - [ ] Phase 1 — Frontend: React+Vite, Import, Piano Roll (PixiJS) + เล่นเสียง/playhead, Status bar
 - [x] Phase 1 — รวม environment: SOME/BTC/Beat This! ใช้ได้ใน `.venv` หลัก (torch 2.14) แล้ว; whisperx เลื่อนไป Phase 4
 - [ ] **ยกไป Phase 2**: ROSVOT, essentia/allin1 (ลงไม่ผ่านบน Windows), เทียบ karaoke model ตัวอื่น, ทดสอบเพลงยาก/ประสานแน่น, ground truth ของจริง

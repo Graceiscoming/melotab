@@ -141,3 +141,18 @@
   - key ใช้ Krumhansl-Schmuckler บนฮิสโทแกรมโน้ตเมโลดี้ (ยังไม่ใช้ chroma/คอร์ด/key change — Phase 4); `score` = สหสัมพันธ์ ไม่ใช่ความน่าจะเป็น
   - `song.json` เป็นเวอร์ชันย่อของ plan หัวข้อ 19 (ยังไม่มี chords/sections/lyrics/tempo map ละเอียด/ornaments)
 - เทสต์: `backend/tests/test_song_logic.py` 6 ข้อ (key, ตำแหน่ง beat เมื่อ tempo เปลี่ยน, confidence/octave flag, unvoiced, export MIDI) ผ่านทั้งหมด; **ส่วน GPU/โมเดลทดสอบด้วยการรันจริง 2 เพลง ยังไม่มี test อัตโนมัติ**
+
+## 2026-10-03 — Phase 1 ขั้นที่ 3: Job orchestrator + cache + WebSocket (FastAPI)
+- ไฟล์ใหม่: `melotab/analysis.py` (run_analysis: ควบคุมสาย + cache + event + ยกเลิก), `cache.py` (StageCache), `jobs/manager.py` (คิว + worker เธรดเดียว), `store.py` (ProjectStore แบบโฟลเดอร์), `monitor.py` (NVML+psutil), `api/app.py` (FastAPI `create_app`); `cli.py` เรียก run_analysis แล้ว
+- รัน API: `cd backend && .venv\Scripts\python -m uvicorn melotab.api.app:app --port 8000`
+- Endpoint: `POST/GET /projects`, `GET /projects/{id}`, `POST /projects/{id}/analyze {karaoke,dereverb}` → job, `GET /jobs[/{id}]`, `POST /jobs/{id}/cancel`, `GET /audio/{project}/{stem}`, `WS /ws` (hello, job.queued/stage/done/error/cancelled, heartbeat ทุก 1 s, system.stats ทุก 1 s)
+- **Cache**: key = sha256(ชื่อขั้น + hash เสียงต้นฉบับ + พารามิเตอร์/เวอร์ชันโมเดล) เก็บ `cache/<key>/` + `.done` (เขียนเสร็จจึงใช้ได้); ขั้นหลัง ๆ ผูกกับ key ของ separation → เปลี่ยน karaoke/dereverb จะรันขั้นถัดไปใหม่เอง; **ผลวัด: เพลงเดิมรันซ้ำ ทุกขั้น 0.0 s** (song01 แยกเสียง 11 s → 0 s)
+- **ทดสอบจริง (uvicorn + WebSocket client) บน song02 4:50 ไม่มี cache**: ทั้งงาน 48.8 s, ลำดับ event ครบ, heartbeat 53 ครั้งใน 49 s, system.stats เห็น GPU util 99% / 68°C ขณะทำงาน; ได้ 807 โน้ตเท่าเดิม
+- ข้อจำกัดที่ตั้งใจและควรรู้:
+  - **ไม่มี % ภายในขั้น** (audio-separator/SOME ไม่มี callback) → % รวมกระโดด 2% → 77% ตอนแยกเสียง; ถ้าจะให้เรียบต้องต่อ tqdm/hook เพิ่ม
+  - **ยกเลิกได้ระหว่างขั้นเท่านั้น** (ขั้นที่รันบน GPU ไม่ถูกขัดจังหวะ); งานในคิวยกเลิกได้ทันที
+  - แยก karaoke/dereverb ออกเป็นขั้นใน UI แค่ตอนเสร็จ (เพราะ `separate()` ทำรวดเดียว)
+  - `source_path` ของ POST /projects เป็น path บนเครื่อง (แอป desktop เครื่องเดียวกัน) — ยังไม่มี upload; ยังไม่มี auth เพราะ bind localhost เท่านั้น อย่าเปิดให้เครือข่ายภายนอก
+  - CORS อนุญาตเฉพาะ `localhost:5173` (Vite dev); ยังไม่มี LRU/จำกัดขนาด cache; ProjectStore ยังไม่มี SQLite/autosave/history
+- เทสต์: `tests/test_api.py` 7 ข้อ (สร้างโปรเจกต์, path traversal/ไฟล์ไม่มี → 404, job + event, heartbeat/stats, error อ่านรู้เรื่อง, ยกเลิกในคิว/กำลังรัน, ความถูกต้องของ cache key + commit) รวมทั้งหมด **13 ผ่าน** (ใช้ runner ปลอม ไม่ใช้ GPU)
+- บั๊กที่เจอระหว่างทาง: ชุดคำสั่ง shell ยาวพังที่ quoting (ไม่เขียนไฟล์ครบ) → ใช้เครื่องมือเขียนไฟล์แทน; สคริปต์ทดสอบ e2e พังเพราะ `sed` ทำ backslash ใน path เสีย (ไม่ใช่บั๊กโค้ด)
