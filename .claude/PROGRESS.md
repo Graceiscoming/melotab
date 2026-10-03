@@ -16,7 +16,8 @@
 ## ทำต่อ (ลำดับถัดไป)
 - [x] Phase 0 — ตั้ง Python env (backend/.venv) + PyTorch cu130 + ชุดแกน (CUDA ใช้ได้, pip check ผ่าน) ยังไม่ commit
 - [ ] Phase 0 — สร้างโครงสร้างโฟลเดอร์ repo ตามหัวข้อ 21
-- [ ] Phase 0 — ลองติดตั้งตัวเสี่ยงแยกทีละตัว: essentia, allin1, whisperx, RMVPE, SOME, Beat This!, BTC
+- [x] Phase 0 — ลองติดตั้งตัวเสี่ยงใน .venv-spike: beat-this/faster-whisper/whisperx/pythainlp ผ่าน; essentia/madmom ล้มบน Windows; allin1 import ไม่ได้ (ดู DECISIONS.md) — ยังไม่ commit
+- [ ] Phase 0 — ยังไม่ได้ลอง: RMVPE (ต้องดึง repo+weights), SOME, ROSVOT, BTC; แก้ madmom/allin1 หรือหาทางเลือก
 - [ ] Phase 0 — รัน separation + f0 บนเพลงจริง วัด VRAM/เวลา
 - [ ] Phase 0 — spike ทดสอบโมเดลทีละตัว: separation, RMVPE, torchcrepe, SOME, Beat This!, essentia, BTC, faster-whisper
 - [ ] Phase 0 — วัดเวลา/VRAM จริง แล้วอัปเดตตารางใน plan.md หัวข้อ 18

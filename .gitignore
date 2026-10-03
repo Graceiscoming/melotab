@@ -64,3 +64,4 @@ cookies.txt
 Thumbs.db
 desktop.ini
 *.log
+.venv-spike/
