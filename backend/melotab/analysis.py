@@ -70,6 +70,7 @@ def run_analysis(src: Path, out: Path, *, karaoke: bool = False, dereverb: bool 
     # --- ingest ---
     t0 = begin("ingest")
     wav = audio.to_wav(src, out / "audio" / "source.wav")
+    audio.to_preview_mp3(wav, out / "audio" / "mix.mp3")
     sha = audio.file_hash(src)
     end("ingest", t0, False)
 

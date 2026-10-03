@@ -14,7 +14,7 @@ from .config import ROOT
 
 DEFAULT_PROJECTS_DIR = ROOT / "Projects"
 ID_RE = re.compile(r"^[0-9A-Za-z_\-฀-๿]{1,80}$")      # อนุญาตไทย/ตัวเลข/ขีด กัน path traversal
-STEMS = {"vocals", "instrumental", "lead", "backing", "lead_dry", "source"}
+STEMS = {"mix", "vocals", "instrumental", "lead", "backing", "lead_dry"}
 
 
 def _slug(text: str) -> str:
@@ -72,5 +72,26 @@ class ProjectStore:
         if stem not in STEMS:
             return None
         base = self.path(project_id) / "audio"
-        p = base / "source.wav" if stem == "source" else base / "stems" / f"{stem}.flac"
+        p = base / "mix.mp3" if stem == "mix" else base / "stems" / f"{stem}.flac"
         return p if p.exists() else None
+
+    def f0_curve(self, project_id: str, step: int = 2) -> dict | None:
+        """เส้น pitch สำหรับวาดบน piano roll: เวลา (s) + MIDI (ทศนิยม, null = unvoiced) ลดความถี่ลงทุก `step` เฟรม (20 ms)"""
+        import numpy as np
+        f = self.path(project_id) / "analysis" / "f0.npz"
+        if not f.exists():
+            return None
+        z = np.load(f)
+        hz, t = z["f0_hz"][::step], z["times"][::step]
+        midi = np.where(hz > 0, 69 + 12 * np.log2(np.maximum(hz, 1e-3) / 440.0), np.nan)
+        return {"hop_s": float(z["hop_s"]) * step, "t0": float(t[0]) if len(t) else 0.0,
+                "midi": [None if np.isnan(m) else round(float(m), 2) for m in midi]}
+
+    def save_song(self, project_id: str, song: dict) -> None:
+        """บันทึกโน้ตที่แก้ไขแล้ว (เขียนไฟล์ชั่วคราวแล้วค่อยแทน กันไฟล์พังตอนปิดโปรแกรมกลางคัน)"""
+        d = self.path(project_id)
+        if not (d / "project.json").exists():
+            raise FileNotFoundError(project_id)
+        tmp = d / "song.json.tmp"
+        tmp.write_text(json.dumps(song, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.replace(d / "song.json")

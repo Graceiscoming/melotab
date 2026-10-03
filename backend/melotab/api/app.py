@@ -7,13 +7,17 @@ import asyncio
 import contextlib
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+import shutil
+import tempfile
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .. import monitor
 from ..analysis import run_analysis
+from ..audio import to_preview_mp3
 from ..cache import StageCache
 from ..jobs.manager import Job, JobManager
 from ..store import ProjectStore
@@ -89,6 +93,16 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
         except FileNotFoundError as e:
             raise HTTPException(404, str(e))
 
+    @app.post("/projects/upload", status_code=201)
+    def upload_project(file: UploadFile = File(...), title: str | None = Form(None)) -> dict:
+        """อัปโหลดไฟล์เสียง/วิดีโอจากเบราว์เซอร์ (เบราว์เซอร์ส่ง path เครื่องให้ไม่ได้)"""
+        suffix = Path(file.filename or "audio").suffix or ".bin"
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td) / f"{Path(file.filename or 'audio').stem}{suffix}"
+            with open(tmp, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+            return store.create(tmp, title or Path(file.filename or "song").stem)
+
     @app.get("/projects")
     def list_projects() -> list[dict]:
         return store.list()
@@ -99,6 +113,26 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
             return {**store.meta(pid), "song": store.song(pid)}
         except (FileNotFoundError, ValueError):
             raise HTTPException(404, "ไม่พบโปรเจกต์")
+
+    @app.get("/projects/{pid}/f0")
+    def get_f0(pid: str) -> dict:
+        try:
+            c = store.f0_curve(pid)
+        except ValueError:
+            c = None
+        if c is None:
+            raise HTTPException(404, "ยังไม่มีเส้น f0 (ยังไม่ได้วิเคราะห์)")
+        return c
+
+    @app.put("/projects/{pid}/song")
+    def put_song(pid: str, song: dict) -> dict:
+        if "notes" not in song or not isinstance(song["notes"], list):
+            raise HTTPException(422, "song ต้องมี notes")
+        try:
+            store.save_song(pid, song)
+        except (FileNotFoundError, ValueError):
+            raise HTTPException(404, "ไม่พบโปรเจกต์")
+        return {"ok": True, "notes": len(song["notes"])}
 
     @app.post("/projects/{pid}/analyze", status_code=202)
     def analyze(pid: str, opts: AnalyzeOptions | None = None) -> dict:
@@ -130,6 +164,9 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
     def audio(pid: str, stem: str):
         try:
             p = store.stem_path(pid, stem)
+            wav = store.path(pid) / "audio" / "source.wav"
+            if not p and stem == "mix" and wav.exists():          # โปรเจกต์เก่าที่วิเคราะห์ก่อนมี mix.mp3
+                p = to_preview_mp3(wav, store.path(pid) / "audio" / "mix.mp3")
         except ValueError:
             p = None
         if not p:

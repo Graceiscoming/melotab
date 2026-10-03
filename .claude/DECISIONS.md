@@ -156,3 +156,14 @@
   - CORS อนุญาตเฉพาะ `localhost:5173` (Vite dev); ยังไม่มี LRU/จำกัดขนาด cache; ProjectStore ยังไม่มี SQLite/autosave/history
 - เทสต์: `tests/test_api.py` 7 ข้อ (สร้างโปรเจกต์, path traversal/ไฟล์ไม่มี → 404, job + event, heartbeat/stats, error อ่านรู้เรื่อง, ยกเลิกในคิว/กำลังรัน, ความถูกต้องของ cache key + commit) รวมทั้งหมด **13 ผ่าน** (ใช้ runner ปลอม ไม่ใช้ GPU)
 - บั๊กที่เจอระหว่างทาง: ชุดคำสั่ง shell ยาวพังที่ quoting (ไม่เขียนไฟล์ครบ) → ใช้เครื่องมือเขียนไฟล์แทน; สคริปต์ทดสอบ e2e พังเพราะ `sed` ทำ backslash ใน path เสีย (ไม่ใช่บั๊กโค้ด)
+
+## 2026-10-03 — Phase 1 ขั้นที่ 4: Frontend (apps/web: React 19 + Vite 8 + TS + PixiJS 8 + Zustand)
+- รัน dev: `cd apps/web && npm run dev` (พอร์ต 5173) คู่กับ backend พอร์ต 8000 (CORS อนุญาตเฉพาะ localhost:5173)
+- หน้าจอ: Library (ลากไฟล์/เลือกไฟล์ → อัปโหลด → วิเคราะห์ทันที, ตัวเลือก karaoke/de-reverb, รายการโปรเจกต์), Workspace (info bar คีย์/BPM/จำนวนโน้ต/จำนวนที่ควรตรวจ, Piano Roll, transport), Status bar (เชื่อมต่อ, งาน+%+ยกเลิก, job panel รายขั้น, GPU/VRAM/อุณหภูมิ/CPU/RAM, แจ้ง "backend ไม่ตอบสนอง" เมื่อ heartbeat ขาด >10 s)
+- Piano Roll (PixiJS): โน้ตพร้อมชื่อ SPN เลือก ♯/♭ ตามคีย์, ไฮไลต์แถวโน้ตในคีย์, grid ตาม beat/downbeat จริง, เส้น pitch จริง (f0) ซ้อน, ความโปร่งตาม confidence + ขอบส้มสำหรับ confidence ต่ำ/สงสัย octave, คลิกโน้ต = เลือก+ฟัง, คลิกคีย์เปียโนซ้าย = ฟังโน้ต, คลิกที่ว่าง = seek, Ctrl+wheel ซูม, wheel เลื่อนแนวตั้ง, Shift+wheel เลื่อนเวลา, playhead + ตามเพลง
+- Audio transport (Web Audio): เล่น stem ที่เลือก + synth โน้ต + metronome ตาม beat grid จริง (schedule ล่วงหน้า 120 ms อ้าง ctx.currentTime เดียวกัน), โหมดฟังเทียบ ซ้าย=เพลง/ขวา=synth, ปุ่ม Space เล่น/หยุด
+- Backend เพิ่มเพื่อ UI: `POST /projects/upload` (multipart), `GET /projects/{id}/f0` (ลดเหลือทุก 20 ms), `PUT /projects/{id}/song`, `mix.mp3` (192k; WAV float32 4:50 ≈ 100 MB ใหญ่เกินสำหรับเบราว์เซอร์) สร้างตอน ingest และสร้างให้โปรเจกต์เก่าตอนถูกขอ
+- **ตรวจจริง** ด้วย Chrome (puppeteer-core, `apps/web/e2e/*.mjs`): เปิดโปรเจกต์ได้ คีย์/BPM/จำนวนโน้ตตรง, กดเล่นแล้วเวลาเดิน (2.5 s หลัง 2.5 s), ดูภาพหน้าจอ piano roll ถูกต้อง, เส้นทาง อัปโหลด→วิเคราะห์→เปิดอัตโนมัติ ใช้ได้ (1.5 s เมื่อ cache hit, job panel แสดงขั้นพร้อมไอคอน cache), ไม่มี error ใน console
+- เทสต์: vitest 7 ข้อ (ชื่อโน้ต/สเกล/hit-test) + backend pytest 14 ข้อ
+- **ยังไม่ได้ตรวจ**: เสียงที่ออกจริงจากลำโพง (ทดสอบได้แค่ว่า transport เดินเวลาในโหมด headless ไม่ได้ฟัง), ความลื่น 60fps บนจอจริง, การลากเลื่อน/ซูมด้วยเมาส์จริง (ทดสอบแค่คลิก), ไม่ได้ทดสอบบน Edge/Firefox
+- ข้อจำกัดที่รู้: bundle JS > 500 kB (PixiJS) ยังไม่ code-split; ยังไม่มี slow-down/loop UI; ยังไม่แก้โน้ตได้ (Phase 2); ยังไม่มี SQLite index/autosave/history (เลื่อนไปทำพร้อมการแก้ไขโน้ต)

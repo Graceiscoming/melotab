@@ -1,7 +1,7 @@
 # สถานะโปรเจกต์ MeloTab (เขียนทับทุกครั้งที่จบงาน)
 
 **อัปเดตล่าสุด**: 2026-10-03
-**Phase ปัจจุบัน**: Phase 1 (กำลังเริ่ม) — Phase 0 จบแล้ว
+**Phase ปัจจุบัน**: Phase 2 (กำลังเริ่ม) — Phase 0, 1 จบแล้ว
 
 ## ทำเสร็จแล้ว
 - [x] เขียนแผนออกแบบ `plan.md` (25 หัวข้อ + ภาคผนวก)
@@ -18,8 +18,8 @@
 - [x] Phase 1 — โครงสร้าง backend/melotab (config, gpu, audio, pipeline, song, cli) + เทสต์ตรรกะ
 - [x] Phase 1 — CLI `python -m melotab.cli analyze` ไฟล์เสียง → song.json + melody.mid (ลิงก์ YouTube ยังไม่ได้: ติด 403)
 - [x] Phase 1 — Job orchestrator + cache content-hash + WebSocket progress + system monitor (FastAPI) — ทดสอบจริงแล้ว (ดู DECISIONS.md)
-- [ ] Phase 1 — Project save/load ส่วนที่เหลือ: SQLite index, autosave, history, PUT /song (มี ProjectStore พื้นฐานแล้ว)
-- [ ] Phase 1 — Frontend: React+Vite, Import, Piano Roll (PixiJS) + เล่นเสียง/playhead, Status bar
+- [x] Phase 1 — Project save/load พื้นฐาน (โฟลเดอร์ + PUT /song); **ย้ายไป Phase 2/6**: SQLite index, autosave, history, .melotab
+- [x] Phase 1 — Frontend: React+Vite, Import, Piano Roll (PixiJS) + เล่นเสียง/playhead, Status bar (ตรวจด้วย Chrome จริงแล้ว)
 - [x] Phase 1 — รวม environment: SOME/BTC/Beat This! ใช้ได้ใน `.venv` หลัก (torch 2.14) แล้ว; whisperx เลื่อนไป Phase 4
 - [ ] **ยกไป Phase 2**: ROSVOT, essentia/allin1 (ลงไม่ผ่านบน Windows), เทียบ karaoke model ตัวอื่น, ทดสอบเพลงยาก/ประสานแน่น, ground truth ของจริง
 - [x] Phase 0 — ลองติดตั้งตัวเสี่ยงใน .venv-spike: beat-this/faster-whisper/whisperx/pythainlp ผ่าน; essentia/madmom ล้มบน Windows; allin1 import ไม่ได้ (ดู DECISIONS.md) — ยังไม่ commit
@@ -41,7 +41,7 @@
 
 ## Roadmap (ติ๊กเมื่อผ่านเกณฑ์ "Done" ใน plan.md หัวข้อ 23)
 - [x] Phase 0 — Setup & Spike (จบแบบมีเงื่อนไข ดูรายการยกไปด้านบน)
-- [ ] Phase 1 — MVP หลังบ้าน + หน้าบ้านพื้นฐาน
+- [x] Phase 1 — MVP หลังบ้าน + หน้าบ้านพื้นฐาน
 - [ ] Phase 2 — ความแม่นยำ (สำคัญสุด)
 - [ ] Phase 3 — Tab Engine + Editor
 - [ ] Phase 4 — ทฤษฎีดนตรีครบ + Chord Sheet + Metronome

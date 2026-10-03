@@ -120,3 +120,15 @@ def test_cache_key_depends_on_params_and_audio(tmp_path):
     assert c.get(a) is None                      # ยังไม่ commit = ยังใช้ไม่ได้
     final = c.commit(a)
     assert c.get(a) == final and (final / "x.txt").read_text() == "hi"
+
+
+def test_upload_creates_project_and_song_put_roundtrip(tmp_path):
+    with make_client(tmp_path, fake_runner) as c:
+        r = c.post("/projects/upload", files={"file": ("เพลง.wav", b"RIFFxxxx", "audio/wav")}, data={"title": "อัปโหลด"})
+        assert r.status_code == 201
+        pid = r.json()["id"]
+        assert c.get(f"/projects/{pid}/f0").status_code == 404           # ยังไม่วิเคราะห์
+        assert c.put(f"/projects/{pid}/song", json={"notes": [{"id": "n1"}]}).json() == {"ok": True, "notes": 1}
+        assert c.get(f"/projects/{pid}").json()["song"]["notes"][0]["id"] == "n1"
+        assert c.put(f"/projects/{pid}/song", json={"x": 1}).status_code == 422
+        assert c.put("/projects/nope/song", json={"notes": []}).status_code == 404
