@@ -1,0 +1,53 @@
+# MeloTab backend — Python 3.11
+# ยังไม่ได้ติดตั้ง/ทดสอบจริง: ยังไม่ pin เวอร์ชัน จะ pin หลังจบ Phase 0 (ดู .claude/DECISIONS.md)
+#
+# ติดตั้ง PyTorch ก่อนด้วยตัวเอง ให้ตรงกับ CUDA (อย่า pip install torch ธรรมดา เพราะอาจได้รุ่น CPU):
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu130
+# (ทดสอบแล้วบนเครื่องนี้: driver 610.74 + cu130 ใช้ได้ ดู requirements-lock.txt; ถ้าเครื่องอื่นเลือก cuXXX ให้ตรงกับ driver ดูที่ https://pytorch.org/get-started/locally/)
+# แล้วค่อย: pip install -r backend/requirements.txt
+
+# ===== API / Job system =====
+fastapi
+uvicorn[standard]
+websockets
+pydantic>=2
+
+# ===== ระบบ / Monitor =====
+psutil
+nvidia-ml-py
+
+# ===== เสียงพื้นฐาน / Ingest =====
+yt-dlp
+soundfile
+numpy
+scipy
+librosa
+pyloudnorm
+# ต้องติดตั้ง ffmpeg ในระบบเอง (ไม่ใช่ pip) และให้อยู่ใน PATH
+
+# ===== Phase 1: Separation, f0, โน้ต, key, beat =====
+audio-separator[gpu]     # รวม Mel-Band RoFormer / BS-RoFormer / MDX / Demucs
+torchcrepe               # f0 (รอง)
+numba                    # Tab Engine + งานคำนวณเร็ว
+essentia                 # key/tuning — ถ้าติดตั้งบน Windows ไม่ผ่าน ให้ใช้ WSL2 หรือ fallback เป็น librosa chroma
+# ---- ต้องติดตั้งเองจาก repo (ไม่มีบน PyPI แบบตรงๆ / ตรวจก่อนใช้) ----
+# RMVPE   : ใช้โค้ด+น้ำหนักจาก repo ของ RMVPE (วางน้ำหนักใน models/)
+# SOME    : https://github.com/openvpi/SOME
+# ROSVOT  : https://github.com/RickyL-2000/ROSVOT
+# Beat This!: pip install https://github.com/CPJKU/beat_this/archive/main.zip
+
+# ===== Phase 4: Chord, โครงสร้างเพลง, เนื้อร้อง =====
+# BTC (chord)  : https://github.com/jayg996/BTC-ISMIR19 (ติดตั้งเอง)
+# allin1       : pip install allin1  (ต้องการ natten + madmom — ติดตั้งยากบน Windows ทดสอบใน Phase 4)
+faster-whisper
+# whisperx     : pip install whisperx  (ทดสอบความเข้ากันกับ torch ก่อน)
+pythainlp
+
+# ===== Phase 5: Export =====
+mido
+pretty_midi
+# MusicXML / Guitar Pro / PNG-PDF จะเลือกไลบรารีตอนถึง Phase 5
+
+# ===== ทดสอบ / วัดความแม่น =====
+pytest
+mir_eval

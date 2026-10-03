@@ -7,12 +7,17 @@
 - [x] เขียนแผนออกแบบ `plan.md` (25 หัวข้อ + ภาคผนวก)
 - [x] อ่านและทำความเข้าใจแผนทั้งหมดร่วมกับ Claude
 - [x] ตั้งระบบบันทึกความคืบหน้า (`CLAUDE.md`, `.claude/`)
+- [x] commit แรก (plan + CLAUDE.md + .claude/)
+- [x] เพิ่ม .gitignore, backend/requirements.txt (ยังไม่ pin/ไม่ได้ทดสอบ), README.md — ยังไม่ commit
 
 ## กำลังทำ
 - (ไม่มี)
 
 ## ทำต่อ (ลำดับถัดไป)
-- [ ] Phase 0 — สร้างโครงสร้าง repo ตามหัวข้อ 21, ตั้ง Python env + CUDA/PyTorch
+- [x] Phase 0 — ตั้ง Python env (backend/.venv) + PyTorch cu130 + ชุดแกน (CUDA ใช้ได้, pip check ผ่าน) ยังไม่ commit
+- [ ] Phase 0 — สร้างโครงสร้างโฟลเดอร์ repo ตามหัวข้อ 21
+- [ ] Phase 0 — ลองติดตั้งตัวเสี่ยงแยกทีละตัว: essentia, allin1, whisperx, RMVPE, SOME, Beat This!, BTC
+- [ ] Phase 0 — รัน separation + f0 บนเพลงจริง วัด VRAM/เวลา
 - [ ] Phase 0 — spike ทดสอบโมเดลทีละตัว: separation, RMVPE, torchcrepe, SOME, Beat This!, essentia, BTC, faster-whisper
 - [ ] Phase 0 — วัดเวลา/VRAM จริง แล้วอัปเดตตารางใน plan.md หัวข้อ 18
 - [ ] Phase 0 — เตรียมชุดเพลงทดสอบ 10–20 เพลงที่แกะมือไว้ (ground truth)

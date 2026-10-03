@@ -1,0 +1,66 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+
+# ===== Node / Frontend =====
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# ===== Tauri / Rust =====
+apps/desktop/src-tauri/target/
+target/
+
+# ===== โมเดล AI และ cache (ไฟล์ใหญ่ ห้าม commit) =====
+models/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+*.engine
+cache/
+
+# ===== ข้อมูลผู้ใช้ / โปรเจกต์เพลง / ไฟล์เสียง =====
+Projects/
+exports/
+*.melotab
+*.wav
+*.flac
+*.mp3
+*.m4a
+*.ogg
+*.opus
+*.mp4
+*.webm
+*.npz
+# ยกเว้นไฟล์ตัวอย่างขนาดเล็กสำหรับเทส ให้ใส่ไว้ใน tests/fixtures/ แล้ว force add เอง
+
+# ===== ความลับ / config เครื่อง =====
+.env
+.env.*
+!.env.example
+*.key
+cookies.txt
+
+# ===== Claude Code (เฉพาะไฟล์ส่วนตัวของเครื่อง) =====
+.claude/settings.local.json
+
+# ===== IDE / OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
