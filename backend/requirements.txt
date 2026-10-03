@@ -1,5 +1,5 @@
 # MeloTab backend — Python 3.11
-# ยังไม่ได้ติดตั้ง/ทดสอบจริง: ยังไม่ pin เวอร์ชัน จะ pin หลังจบ Phase 0 (ดู .claude/DECISIONS.md)
+# เวอร์ชันที่ทดสอบแล้วจริงดู requirements-lock.txt (pip freeze ของ .venv); ไฟล์นี้ยังไม่ pin
 #
 # ติดตั้ง PyTorch ก่อนด้วยตัวเอง ให้ตรงกับ CUDA (อย่า pip install torch ธรรมดา เพราะอาจได้รุ่น CPU):
 #   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu130
@@ -30,11 +30,28 @@ audio-separator[gpu]     # รวม Mel-Band RoFormer / BS-RoFormer / MDX / Dem
 torchcrepe               # f0 (รอง)
 numba                    # Tab Engine + งานคำนวณเร็ว
 essentia                 # key/tuning — ถ้าติดตั้งบน Windows ไม่ผ่าน ให้ใช้ WSL2 หรือ fallback เป็น librosa chroma
-# ---- ต้องติดตั้งเองจาก repo (ไม่มีบน PyPI แบบตรงๆ / ตรวจก่อนใช้) ----
-# RMVPE   : ใช้โค้ด+น้ำหนักจาก repo ของ RMVPE (วางน้ำหนักใน models/)
-# SOME    : https://github.com/openvpi/SOME
-# ROSVOT  : https://github.com/RickyL-2000/ROSVOT
-# Beat This!: pip install https://github.com/CPJKU/beat_this/archive/main.zip
+# ---- ตัวที่ใช้ได้แล้วใน venv หลัก (ทดสอบ Phase 0/1 บน torch 2.14.1+cu130) ----
+click
+lightning
+mido
+h5py
+matplotlib
+torchmetrics
+praat-parselmouth
+PyYAML
+einops
+pretty_midi
+mir_eval
+pandas
+beat-this @ https://github.com/CPJKU/beat_this/archive/main.zip   # beat/downbeat
+# ---- ต้องดึงโค้ดจาก repo เอง (ไม่มีบน PyPI) วางใน third_party/ (gitignore) ----
+# SOME   : git clone https://github.com/openvpi/SOME third_party/SOME  (ไม่ใช้ requirements.txt ของ repo)
+#          น้ำหนัก: gh release download v1.0.0-baseline -R openvpi/SOME -D models/SOME  แล้วแตก zip
+# RMVPE  : น้ำหนัก gh release download 230917 -R yxlllc/RMVPE -p rmvpe.zip -D models/RMVPE (ใช้คลาสใน third_party/SOME/modules/rmvpe)
+# BTC    : git clone https://github.com/jayg996/BTC-ISMIR19 third_party/BTC (น้ำหนักมากับ repo)
+#          โค้ดเก่า แก้ 3 จุด: yaml.load→safe_load (utils/hparams.py), np.float/np.int/np.bool→builtin (utils/*.py, btc_model.py),
+#          torch.load(...)→weights_only=False (test.py)
+# ยังลงไม่ผ่านบน Windows: essentia, madmom (→ allin1 ใช้ไม่ได้)  | ยังไม่ได้ลอง: ROSVOT
 
 # ===== Phase 4: Chord, โครงสร้างเพลง, เนื้อร้อง =====
 # BTC (chord)  : https://github.com/jayg996/BTC-ISMIR19 (ติดตั้งเอง)

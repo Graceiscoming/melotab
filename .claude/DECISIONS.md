@@ -124,3 +124,9 @@
   - ข้อควรระวัง: เกณฑ์วัดคือ "SOME สอดคล้องกับ f0" (ไม่ใช่ ground truth) และ f0 ก็คำนวณจากเสียง variant เดียวกัน; ต้องให้ผู้ใช้ฟัง `testdata/out_karaoke/cmp_dry.wav` เทียบ
 - ไฟล์ทดสอบ: `testdata/out_karaoke/` (lead.flac, some_*.mid, cmp_plain/karaoke/dry.wav) และ `testdata/out_dereverb/` (lead_dry.flac)
 - Pipeline ที่แนะนำสำหรับ Phase 1–2: mix → vocal (Mel-Band RoFormer) → lead (karaoke) → dry (de-reverb, ตัวเลือก) → f0 + SOME; เก็บ stem ทุกชั้นใน cache เพื่อรันขั้นหลังใหม่ได้
+
+## 2026-10-03 — Phase 1: รวม environment เป็น venv เดียว
+- ลง dependency ของ SOME + Beat This! + BTC ลงใน `backend/.venv` (torch 2.14.1+cu130) → ไม่ต้องใช้ torch 2.8 แล้ว: `pip check` ผ่าน, CUDA ใช้ได้
+- ยืนยันผลเหมือน `.venv-spike`: BTC ได้ไฟล์ .lab **ตรงกันทุกไบต์**, SOME ได้ 769 โน้ตเท่ากันบน lead เดียวกัน, Beat This! ได้ผลบน GPU
+- **การตัดสินใจ**: ใช้ `backend/.venv` เป็น environment หลักเดียว; `whisperx` (ต้องการ torch 2.8) เลื่อนไป Phase 4 — ตอนนั้นเลือกระหว่าง ใช้ faster-whisper + alignment แยก / worker แยก venv; `.venv-spike` เก็บไว้อ้างอิงได้ ลบทิ้งได้เมื่อไม่ต้องการ
+- อัปเดต `backend/requirements.txt` (ส่วนตัวที่ใช้ได้แล้ว + วิธีดึงโค้ด SOME/RMVPE/BTC) และ `requirements-lock.txt`
