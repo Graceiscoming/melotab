@@ -53,3 +53,29 @@
 - **ยังไม่ได้ตรวจความถูกต้องของโน้ต** (ไม่มี ground truth, ยังไม่ได้ฟังเทียบ), ยังไม่ได้ทดสอบ RMVPE/karaoke/de-reverb
 - โมเดลเก็บที่ `D:\melotab\models\` (gitignore); ไฟล์ทดสอบที่ `testdata/` (ไฟล์เสียงถูก gitignore)
 - หมายเหตุ: ต้องตั้ง `PYTHONIOENCODING=utf-8` เมื่อพิมพ์ชื่อโน้ตที่มี ♯ บน Windows console
+
+## 2026-10-03 — Spike SOME (Singing-Oriented MIDI Extractor)
+- ที่มา: https://github.com/openvpi/SOME (MIT) clone ไว้ที่ `third_party/SOME` (gitignore); น้ำหนัก `v1.0.0-baseline` → `models/SOME/0119_continuous256_5spk/model_ckpt_steps_100000_simplified.ckpt` (ดาวน์โหลดจาก GitHub release ด้วย gh)
+- ติดตั้ง: **ไม่ใช้ `requirements.txt` ของ repo** (pin fairseq==0.12.2, gradio 3.47.1, onnx==1.14.0, librosa<0.10 ซึ่งน่าจะล้มบน Py3.11/Windows) — ลงเฉพาะที่ infer ใช้ใน `.venv-spike`: click, lightning, mido, h5py, matplotlib, torchmetrics, praat-parselmouth, PyYAML, tqdm, einops, librosa → รันได้ torch 2.8.0+cu128 ยังใช้ CUDA ได้ `pip check` ผ่าน
+- รัน: `python infer.py --model CKPT --wav vocal.wav --midi out.mid` ใช้เวลาไม่กี่วินาที (progress 3 batch ~1.5 s) บน vocal stem 49 s; **ยังไม่ได้วัด VRAM ของ SOME แยก**
+- config ของโมเดลอ้าง RMVPE (`pretrained/rmvpe/model.pt`) แต่ infer ทำงานได้โดยไม่มีไฟล์นี้ (ไม่ error) — ยังไม่ได้ตรวจว่ามีผลต่อคุณภาพหรือไม่
+- **ผลบน song01** (`backend/scripts/spike_some_eval.py`): 150 โน้ต, median 278 ms (min 104 ms, max 0.81 s), ช่วง D♯3–D♯5
+  - เทียบกับ median f0 (torchcrepe) ในช่วงโน้ต: mean|d| = 0.35 semitone, ภายใน ±0.5 = 85%, ±1 = 93%, octave error = 0
+  - ครอบคลุม voiced frames 93%; frames ในโน้ตที่เป็น unvoiced 8%; โน้ตที่ไม่มี voiced f0 เลย 1 ตัว
+  - **ข้อควรระวัง**: ตัวเลขนี้วัดเทียบกับ f0 ของ torchcrepe (ไม่ใช่ ground truth จริง) จึงบอกได้แค่ว่า "สอดคล้องกับเส้น pitch" ไม่ได้บอกว่าแบ่งโน้ต/ onset ถูก
+- ไฟล์ฟังเทียบ `testdata/out/compare_some.wav` (ซ้าย=vocal, ขวา=โน้ต SOME) — ผู้ใช้ฟังแล้ว: ตรงดี (เพลงเดียว ยังไม่ครอบคลุมสไตล์อื่น)
+- หมายเหตุ: MIDI ที่ออกมาใช้ tempo เริ่มต้นของ SOME (ยังไม่ผูกกับ beat grid จริง) เวลาในไฟล์เป็นวินาทีผ่าน mido ใช้ได้
+
+## 2026-10-03 — วัดเพลงเต็ม song02 (290 s = 4:50, mp3 ผู้ใช้โหลดมาเอง)
+| ขั้น | เวลา | VRAM เพิ่ม |
+|---|---|---|
+| Separation (Mel-Band RoFormer, โมเดลโหลดไว้แล้ว) | 34.0 s (≈0.12× realtime) | ≈ 3.77 GB (peak รวม 4.64 GB) |
+| f0 torchcrepe full+viterbi | 13.4 s | ≈ 1.79 GB |
+| SOME (โหลดโมเดล+infer ทั้งโปรเซส) | 9.7 s wall | ≈ 1.2 GB (peak รวม 1.8 GB, วัดด้วย nvidia-smi) |
+- รวม GPU ≈ 57 s ต่อเพลง 4:50 (ยังไม่รวม ffmpeg/ดาวน์โหลด/โหลดโมเดลครั้งแรก ~70 s) → ดีกว่าประมาณการ 1.5–3 นาทีใน plan.md (ยังไม่รวมขั้น karaoke/de-reverb/beat/chord/lyrics)
+- VRAM ไม่โตตามความยาวเพลง (chunking ทำงานตามคาด) peak รวมทุกขั้น < 5 GB จากที่มี 8 GB → รันทีละโมเดลพอ
+- **ข้อสังเกตสำคัญ — SOME บน song02**: 807 โน้ต (median 244 ms, min 34 ms); เทียบ median f0: mean|d| = 1.67 st, ±1 st = 81%, ต่างกัน ≥ 11 semitone **63 โน้ต** (44 ตัวพอดี +12) ส่วนใหญ่ SOME ให้ A3/B3/D3/C♯4/F♯3 ขณะ f0 บอกสูงกว่า 1 octave (เช่น 67.9–70.5 s ต่อเนื่องหลายโน้ต SOME=A3 f0=A4)
+  - อาจเป็น SOME พับ octave ในช่วงเสียงสูง หรือ torchcrepe กระโดด octave — **ยังไม่รู้ว่าฝั่งไหนผิด ต้องฟัง** (`testdata/out2/compare_some.wav`, ฟังช่วง ~66–71 s, 83–84 s, 130–150 s, 160–180 s)
+  - ช่วงเสียง SOME รวม G2–F♯5 ขณะ f0 (2–98 percentile) A3–E5 → โน้ต G♯2 ฯลฯ น่าสงสัย
+  - บทเรียน: เพลง 49 วินาทีแรกไม่เจอปัญหานี้ → ต้องมีชุดทดสอบหลายเพลง และ plan.md หัวข้อ 7 (ensemble f0 + แก้ octave ด้วยบริบท) มีเหตุผลจริง
+- ถ้า SOME เป็นฝ่ายผิด: แนวแก้ = ใช้ f0 ensemble ตัดสิน octave ของโน้ต (แก้โน้ตของ SOME ให้ตรง octave ของ median f0) หรือลอง ROSVOT/HMM ของเราเอง

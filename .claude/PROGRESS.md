@@ -19,7 +19,11 @@
 - [x] Phase 0 — ลองติดตั้งตัวเสี่ยงใน .venv-spike: beat-this/faster-whisper/whisperx/pythainlp ผ่าน; essentia/madmom ล้มบน Windows; allin1 import ไม่ได้ (ดู DECISIONS.md) — ยังไม่ commit
 - [ ] Phase 0 — ยังไม่ได้ลอง: RMVPE (ต้องดึง repo+weights), SOME, ROSVOT, BTC; แก้ madmom/allin1 หรือหาทางเลือก
 - [x] Phase 0 — รัน separation + f0 บนเพลงจริง (song01, 49 s): แยก 18 s / 3.8 GB, f0 2.6 s / 1.7 GB (ดู DECISIONS.md) — ยังไม่ commit
-- [ ] Phase 0 — ตรวจความถูกต้องโน้ต (ฟังเทียบ / ground truth), ลอง RMVPE, SOME, karaoke/de-reverb, วัดเพลงยาว 4 นาที
+- [x] Phase 0 — ฟังเทียบ f0 (torchcrepe) บน song01: ผู้ใช้ฟังแล้วตรงดี
+- [x] Phase 0 — SOME รันได้ (150 โน้ต, สอดคล้อง f0 ±1 semitone 93%) — ผู้ใช้ฟัง compare_some.wav แล้ว ตรงดี; ยังไม่ commit
+- [x] Phase 0 — วัดเพลงเต็ม song02 (4:50): GPU รวม ≈ 57 s, peak VRAM < 5 GB (ดู DECISIONS.md)
+- [ ] Phase 0 — **ปัญหาค้าง**: SOME vs f0 ต่างกัน 1 octave ใน 63/807 โน้ตของ song02 — ต้องฟัง testdata/out2/compare_some.wav ตัดสินว่า SOME หรือ torchcrepe ผิด
+- [ ] Phase 0 — ลอง RMVPE (เทียบ torchcrepe), ROSVOT, BTC, karaoke/de-reverb
 - [ ] Phase 0 — spike ทดสอบโมเดลทีละตัว: separation, RMVPE, torchcrepe, SOME, Beat This!, essentia, BTC, faster-whisper
 - [ ] Phase 0 — วัดเวลา/VRAM จริง แล้วอัปเดตตารางใน plan.md หัวข้อ 18
 - [ ] Phase 0 — เตรียมชุดเพลงทดสอบ 10–20 เพลงที่แกะมือไว้ (ground truth)
