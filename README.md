@@ -42,6 +42,9 @@
 - **Backend**: Python 3.11, FastAPI, PyTorch (CUDA), Numba
 - **เครื่องเป้าหมาย**: i5-13500HX, RTX 4060 Laptop 8 GB, RAM 32 GB, Windows 11
 
+## เปิดใช้งานเร็ว
+ดับเบิลคลิก `start.bat` (เปิด backend + หน้าเว็บในหน้าต่างที่ย่อไว้ แล้วเปิดเบราว์เซอร์ที่ http://localhost:5173) · หยุดทั้งหมดด้วย `start.bat stop` · หรือใช้แอป desktop ที่ `apps\desktop\src-tauri	argetelease\melotab.exe`
+
 ## การติดตั้งและรัน (dev)
 ทดสอบแล้วบน Windows 11 + RTX 4060 (driver ใหม่ รองรับ CUDA 13) ขั้นตอนทั้งหมดยังเป็นแบบ manual:
 
