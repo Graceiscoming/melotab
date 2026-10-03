@@ -22,7 +22,11 @@ export function Workspace() {
   const tr = getTransport()
   const [playing, setPlaying] = useState(false)
   const [track, setTrack] = useState<TrackName>('mix')
-  const [synth, setSynth] = useState(false)
+  const [mixer, setMixerUi] = useState(false)
+  const [mixBusy, setMixBusy] = useState(false)
+  const [vocalVol, setVocalVol] = useState(100) // % (0–150)
+  const [musicVol, setMusicVol] = useState(100)
+  const [pianoVol, setPianoVol] = useState(0) // % (0–200) 0 = ปิดเสียงเปียโน
   const [click, setClick] = useState(false)
   const [split, setSplit] = useState(false)
   const [ready, setReady] = useState(false)
@@ -53,7 +57,10 @@ export function Workspace() {
 
   // ส่งโน้ต/beat ล่าสุดให้ transport (synth + metronome ใช้ข้อมูลที่แก้แล้วทันที)
   useEffect(() => { if (song) tr.setSong(song.notes, song.beats) }, [song, tr])
-  useEffect(() => { tr.synthOn = synth }, [synth, tr])
+  useEffect(() => { tr.synthOn = pianoVol > 0; tr.setSynthVolume(0.35 * pianoVol / 100) }, [pianoVol, tr])
+  useEffect(() => { tr.setVocalVolume(vocalVol / 100) }, [vocalVol, tr])
+  useEffect(() => { tr.setInstVolume(musicVol / 100) }, [musicVol, tr])
+  useEffect(() => { setMixerUi(false); tr.setMixer(false) }, [currentId, tr])
   useEffect(() => { tr.noteTranspose = view.mode === 'tab' ? tabSettings.transpose : 0 }, [view.mode, tabSettings.transpose, tr])
   // เข้าโหมดแทปครั้งแรกโดยยังไม่มีแทป → สร้างให้เลย
   useEffect(() => { if ((view.mode === 'tab' || view.mode === 'practice') && !tab && song) void useStore.getState().regenerateTab() }, [view.mode]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -85,6 +92,27 @@ export function Workspace() {
   function toggle() {
     if (!ready) return
     if (tr.playing) { tr.pause(); setPlaying(false) } else { void tr.play(tr.loop && (tr.getTime() < tr.loop.a || tr.getTime() >= tr.loop.b) ? tr.loop.a : undefined, true); setPlaying(true) }
+  }
+
+  /** เปิด/ปิดมิกเซอร์: โหลด stem เสียงร้อง + instrumental (ครั้งแรกรอสักครู่) แล้วปรับระดับเสียงแต่ละส่วนได้ */
+  async function toggleMixer(on: boolean) {
+    if (!currentId) return
+    if (on) {
+      setMixBusy(true)
+      try {
+        await tr.ensureLoaded('instrumental', api.audioUrl(currentId, 'instrumental'))
+        const vocalStem: TrackName = song?.meta.karaoke ? 'lead' : 'vocals'
+        await tr.ensureLoaded(vocalStem, api.audioUrl(currentId, vocalStem))
+      } catch (e) { setError(`เปิดมิกเซอร์ไม่สำเร็จ: ${e instanceof Error ? e.message : e}`); setMixBusy(false); return }
+      setMixBusy(false)
+    }
+    setMixerUi(on)
+    tr.setMixer(on)
+  }
+  /** พรีเซ็ตสำหรับฟังเปียโนชัด ๆ: เบาเสียงร้อง ลดดนตรีลงเล็กน้อย เพิ่มเสียงเปียโน */
+  async function pianoFocus() {
+    if (!mixer) await toggleMixer(true)
+    setVocalVol(20); setMusicVol(60); setPianoVol(150)
   }
 
   async function changeRate(r: number) {
@@ -191,9 +219,15 @@ export function Workspace() {
         <span ref={timeEl} className="time" data-testid="time">0:00.0</span>
         <input ref={seekEl} type="range" className="seekbar" min={0} max={song.source.duration} step={0.05} defaultValue={0} data-testid="seekbar"
           title="ลากเพื่อไปยังตำแหน่งใดก็ได้ในเพลง" onInput={(e) => seekTo(+(e.target as HTMLInputElement).value)} />
-        <label>เสียง <select value={track} onChange={(e) => void changeTrack(e.target.value as TrackName)}>
+        <label>เสียง <select disabled={mixer} value={track} onChange={(e) => void changeTrack(e.target.value as TrackName)}>
           {tracks.map((t) => <option key={t} value={t}>{TRACK_LABEL[t]}</option>)}</select></label>
-        <label><input type="checkbox" checked={synth} onChange={(e) => setSynth(e.target.checked)} /> เสียงโน้ต (synth)</label>
+        <label title="เสียงเปียโนสังเคราะห์ของโน้ตที่แกะได้ (0 = ปิด)">🎹 เปียโน <input type="range" min={0} max={200} step={5} value={pianoVol} onChange={(e) => setPianoVol(+e.target.value)} data-testid="vol-piano" className="vol" /><b className="volnum">{pianoVol}%</b></label>
+        <label title="แยกเสียงร้องกับดนตรีเพื่อปรับระดับเสียงแต่ละส่วน (ใช้ stem ที่แยกไว้)"><input type="checkbox" checked={mixer} disabled={mixBusy} onChange={(e) => void toggleMixer(e.target.checked)} data-testid="mixer-toggle" /> มิกเซอร์{mixBusy ? ' … โหลด' : ''}</label>
+        {mixer && <>
+          <label>🎤 เสียงร้อง <input type="range" min={0} max={150} step={5} value={vocalVol} onChange={(e) => setVocalVol(+e.target.value)} data-testid="vol-vocal" className="vol" /><b className="volnum">{vocalVol}%</b></label>
+          <label>🎸 ดนตรี <input type="range" min={0} max={150} step={5} value={musicVol} onChange={(e) => setMusicVol(+e.target.value)} data-testid="vol-music" className="vol" /><b className="volnum">{musicVol}%</b></label>
+        </>}
+        <button onClick={() => void pianoFocus()} disabled={mixBusy} title="เบาเสียงร้องลง เพิ่มเสียงเปียโน เพื่อฟังโน้ตที่แกะได้ชัด ๆ" data-testid="piano-focus">เน้นเปียโน</button>
         <label title="เพลงออกหูซ้าย / synth ออกหูขวา เพื่อฟังเทียบว่าโน้ตตรงไหม"><input type="checkbox" checked={split} onChange={(e) => setSplit(e.target.checked)} /> ฟังเทียบ ซ้าย/ขวา</label>
         <label><input type="checkbox" checked={click} onChange={(e) => setClick(e.target.checked)} /> Metronome</label>
         <label title="นับจังหวะก่อนเริ่มเล่น">นับ <select value={countIn} onChange={(e) => setCountIn(+e.target.value)} data-testid="countin">

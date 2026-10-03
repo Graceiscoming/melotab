@@ -13,12 +13,15 @@ export type TrackName = 'mix' | 'vocals' | 'instrumental' | 'lead' | 'backing' |
 export class Transport {
   ctx = new AudioContext()
   private buffers = new Map<string, AudioBuffer>()
-  private src: AudioBufferSourceNode | null = null
+  private srcs: AudioBufferSourceNode[] = []
   private musicGain = this.ctx.createGain()
   private musicPan = this.ctx.createStereoPanner()
   private synthGain = this.ctx.createGain()
   private synthPan = this.ctx.createStereoPanner()
   private clickGain = this.ctx.createGain()
+  private vocalGain = this.ctx.createGain()
+  private instGain = this.ctx.createGain()
+  mixerOn = false // มิกเซอร์: เล่น stem เสียงร้อง + ดนตรี แยกกันเพื่อปรับระดับเสียงแต่ละส่วน
 
   track: TrackName = 'mix'
   playing = false
@@ -42,6 +45,8 @@ export class Transport {
   onEnded: (() => void) | null = null
 
   constructor() {
+    this.vocalGain.connect(this.musicGain)
+    this.instGain.connect(this.musicGain)
     this.musicGain.connect(this.musicPan).connect(this.ctx.destination)
     this.synthGain.connect(this.synthPan).connect(this.ctx.destination)
     this.clickGain.connect(this.ctx.destination)
@@ -55,12 +60,33 @@ export class Transport {
     this.resetCursors(this.getTime())
   }
 
-  async loadTrack(name: TrackName, url: string): Promise<void> {
-    if (!this.buffers.has(name)) {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`โหลดเสียง ${name} ไม่สำเร็จ (${res.status})`)
-      this.buffers.set(name, await this.ctx.decodeAudioData(await res.arrayBuffer()))
+  /** โหลด stem เข้าหน่วยความจำ (ไม่เปลี่ยน stem ที่เลือกเล่น) */
+  async ensureLoaded(name: TrackName, url: string): Promise<void> {
+    if (this.buffers.has(name)) return
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`โหลดเสียง ${name} ไม่สำเร็จ (${res.status})`)
+    this.buffers.set(name, await this.ctx.decodeAudioData(await res.arrayBuffer()))
+  }
+
+  /** stem ที่จะเล่นจริง: โหมดมิกเซอร์ = เสียงร้อง (lead ถ้ามี) + instrumental แยกกัน (ถ้าโหลดครบ) ไม่งั้นเล่น stem ที่เลือก */
+  private playNames(): { name: TrackName; bus: GainNode | null }[] {
+    if (this.mixerOn) {
+      const v: TrackName | null = this.buffers.has('lead') ? 'lead' : this.buffers.has('vocals') ? 'vocals' : null
+      if (v && this.buffers.has('instrumental')) return [{ name: v, bus: this.vocalGain }, { name: 'instrumental', bus: this.instGain }]
     }
+    return [{ name: this.track, bus: null }]
+  }
+  setMixer(on: boolean) {
+    if (this.mixerOn === on) return
+    this.mixerOn = on
+    if (this.rate !== 1) void this.setRate(this.rate)
+    else if (this.playing) void this.play(this.getTime())
+  }
+  setVocalVolume(v: number) { this.vocalGain.gain.value = v }
+  setInstVolume(v: number) { this.instGain.gain.value = v }
+
+  async loadTrack(name: TrackName, url: string): Promise<void> {
+    await this.ensureLoaded(name, url)
     this.track = name
     this.duration = this.buffers.get(name)!.duration
     if (this.rate !== 1) await this.setRate(this.rate) // เตรียม buffer ยืดเวลาของ stem ใหม่ (เล่นต่อให้เองถ้ากำลังเล่น)
@@ -92,22 +118,28 @@ export class Transport {
   async play(from = this.offset, withCountIn = false) {
     await this.ctx.resume()
     this.stopSource()
-    const orig = this.buffers.get(this.track)
-    if (!orig) return
-    const buf = this.rate === 1 ? orig : this.stretched.get(`${this.track}@${this.rate}`) ?? orig
-    const r = buf === orig ? 1 : this.rate
-    if (r !== this.rate) this.rate = r // ยังไม่มี buffer ที่ยืดไว้ → เล่นปกติ (setRate เป็นคนเตรียม buffer)
+    const names = this.playNames()
+    const origs = names.map((n) => this.buffers.get(n.name))
+    if (origs.some((o) => !o)) return
+    const orig = origs[0]!
+    const stretchedAll = names.map((n) => this.stretched.get(`${n.name}@${this.rate}`))
+    if (this.rate !== 1 && stretchedAll.some((x) => !x)) this.rate = 1 // ยังไม่มี buffer ที่ยืดไว้ → เล่นปกติ (setRate เป็นคนเตรียม buffer)
+    const r = this.rate
     from = Math.max(0, Math.min(from, orig.duration - 0.01))
-    const s = this.ctx.createBufferSource()
-    s.buffer = buf
-    s.connect(this.musicGain)
-    s.onended = () => {
-      if (this.src === s && this.playing && this.getTime() >= orig.duration - 0.05) this.pause(true)
-    }
     const lead = withCountIn ? this.countInClicks(from) : 0
     this.startedAt = this.ctx.currentTime + 0.03 + lead // เผื่อเวลาเริ่ม ให้ schedule ทัน (+ เวลานับ)
-    s.start(this.startedAt, from / r)
-    this.src = s
+    names.forEach((n, i) => {
+      const s = this.ctx.createBufferSource()
+      s.buffer = r === 1 ? origs[i]! : stretchedAll[i]!
+      s.connect(n.bus ?? this.musicGain)
+      if (i === 0) {
+        s.onended = () => {
+          if (this.srcs[0] === s && this.playing && this.getTime() >= orig.duration - 0.05) this.pause(true)
+        }
+      }
+      s.start(this.startedAt, from / r)
+      this.srcs.push(s)
+    })
     this.offset = from
     this.playing = true
     this.resetCursors(from)
@@ -136,12 +168,12 @@ export class Transport {
   }
 
   private stopSource() {
-    if (this.src) {
-      this.src.onended = null
-      try { this.src.stop() } catch { /* หยุดไปแล้ว */ }
-      this.src.disconnect()
-      this.src = null
+    for (const src of this.srcs) {
+      src.onended = null
+      try { src.stop() } catch { /* หยุดไปแล้ว */ }
+      src.disconnect()
     }
+    this.srcs = []
   }
 
   private resetCursors(t: number) {
@@ -179,24 +211,30 @@ export class Transport {
     }
   }
 
-  /** เสียง synth โน้ตเดียว (สามเหลี่ยม + harmonic เบา ๆ ให้ได้ยินชัดซ้อนกับเสียงร้อง) */
+  /** เสียงเปียโนสังเคราะห์ 1 โน้ต: partial หลายตัวที่ decay ตามระดับเสียง (โน้ตสูงจางเร็ว) + ปล่อยเสียงเมื่อโน้ตจบ */
   private blip(hz: number, when: number, dur: number) {
     const t = Math.max(when, this.ctx.currentTime)
+    const decay = Math.max(0.35, Math.min(2.2, 2.4 * Math.pow(220 / hz, 0.6)))   // วินาทีที่เสียงลดลง ~60 dB
+    const hold = Math.max(0.12, dur)
     const g = this.ctx.createGain()
     g.gain.setValueAtTime(0, t)
-    g.gain.linearRampToValueAtTime(0.5, t + 0.01)
-    g.gain.setValueAtTime(0.5, t + Math.max(0.01, dur - 0.03))
-    g.gain.linearRampToValueAtTime(0, t + dur)
+    g.gain.linearRampToValueAtTime(0.9, t + 0.006)
+    g.gain.setTargetAtTime(0.0001, t + 0.006, decay / 6.9)                          // เสียงค่อย ๆ จาง (เหมือนสายเปียโน)
+    g.gain.setTargetAtTime(0, t + hold, 0.07)                                       // ปล่อยคีย์เมื่อโน้ตจบ
     g.connect(this.synthGain)
-    for (const [mult, amp] of [[1, 1], [2, 0.3]] as const) {
+    const partials: [number, number, number][] = [[1, 1, 1], [2, 0.5, 1.6], [3, 0.28, 2.2], [4, 0.14, 3], [5, 0.07, 4]] // [ตัวคูณความถี่, แอมพลิจูด, ความเร็วจางสัมพัทธ์]
+    const stopAt = t + hold + 0.5
+    for (const [mult, amp, fast] of partials) {
+      if (hz * mult > 9000) continue
       const o = this.ctx.createOscillator()
       const og = this.ctx.createGain()
-      o.type = 'triangle'
-      o.frequency.value = hz * mult
-      og.gain.value = amp
+      o.type = 'sine'
+      o.frequency.value = hz * mult * (1 + 0.0004 * mult * mult)                    // inharmonicity เล็กน้อย
+      og.gain.setValueAtTime(amp, t)
+      og.gain.setTargetAtTime(amp * 0.05, t, decay / (6.9 * fast))
       o.connect(og).connect(g)
       o.start(t)
-      o.stop(t + dur + 0.02)
+      o.stop(stopAt)
     }
   }
 
@@ -214,12 +252,16 @@ export class Transport {
 
   /** ตั้งความเร็ว: เตรียม buffer ยืดเวลา (ครั้งแรกใช้เวลาหลายวินาที) แล้วเล่นต่อจากตำแหน่งเดิม */
   async setRate(rate: number, onBusy?: (busy: boolean) => void) {
-    const key = `${this.track}@${rate}`
-    if (rate !== 1 && !this.stretched.has(key)) {
-      const orig = this.buffers.get(this.track)
-      if (orig) {
+    if (rate !== 1) {
+      const todo = this.playNames().filter((n) => !this.stretched.has(`${n.name}@${rate}`))
+      if (todo.length) {
         onBusy?.(true)
-        try { this.stretched.set(key, await timeStretch(this.ctx, orig, rate)) } finally { onBusy?.(false) }
+        try {
+          for (const n of todo) {
+            const orig = this.buffers.get(n.name)
+            if (orig) this.stretched.set(`${n.name}@${rate}`, await timeStretch(this.ctx, orig, rate))
+          }
+        } finally { onBusy?.(false) }
       }
     }
     const t = this.getTime()
