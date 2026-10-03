@@ -71,3 +71,4 @@ testdata/
 
 # ===== โค้ดภายนอกที่ clone มาทดลอง =====
 third_party/
+apps/desktop/src-tauri/gen/

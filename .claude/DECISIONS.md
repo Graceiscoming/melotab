@@ -231,3 +231,10 @@
 - ตรวจ ornament จาก f0 ด้วยกฎ (ไม่ใช้โมเดล): vibrato = สั่น 3.5–9 Hz ≥35 cents p-p; scoop ≥70 cents; bend ไต่ ≥60 cents ทางเดียว; slide vs legato แบ่งที่ช่วงเปลี่ยนพิทช์ 70 ms. ผลบน song02: 543 ornament/807 โน้ต — ยังไม่มี ground truth จึงเป็นข้อเสนอที่ผู้ใช้ตรวจเสมอ
 - Export รูปวาดเอง (รายการคำสั่ง → SVG + PIL) แทน alphaTab/resvg: ไม่เพิ่ม dependency หนัก, SVG/PNG/PDF ได้ layout เดียวกัน; GP เขียนเป็น GP5 ด้วย pyguitarpro (GP8/.gp เป็นฟอร์แมตปิด)
 - ความยาวโน้ตใน MusicXML/GP ปัดลงเป็นค่ามาตรฐาน + พัก (ไม่ใช้ tie) เพื่อให้ทุกห้องรวมความยาวถูกเสมอ — แลกกับ sustain ที่หายไปเล็กน้อย
+
+## 2026-10-04 — Phase 6
+- **Tauri เป็นแค่ shell**: ไม่ bundle Python/PyTorch/โมเดล (หลาย GB, PyInstaller กับ torch+CUDA เปราะ) — แอปหา backend/.venv ข้างตัวเองแล้วสตาร์ทให้ ตัวติดตั้งจริงที่ self-contained เป็นงานถัดไป
+- **Practice Mode**: pitch จากไมค์ด้วย NSDF (McLeod) ในเบราว์เซอร์ ไม่ใช้โมเดล; ให้คะแนนจาก pitch ±50 cents ภายในช่วงเวลาโน้ต (≥2 เฟรม) ไม่ตรวจ onset — เพียงพอสำหรับ "เล่นตามแทปถูกไหม" ไม่ใช่ score following เต็มรูปแบบ
+- **Video export** เรนเดอร์เฟรมด้วย PIL ส่งเข้า ffmpeg ผ่าน stdin (ไม่ใช้ headless browser) — เร็ว (ท่อน 18.8 s ใช้ 1.6 s) และไม่เพิ่ม dependency
+- Model Manager ลบได้เฉพาะโมเดลที่ไลบรารีโหลดให้อัตโนมัติ เพื่อไม่ให้ผู้ใช้ลบของที่ติดตั้งเองแล้วกู้คืนไม่ได้
+- ไม่ทำ TensorRT/ONNX รอบนี้: pipeline ทั้งเพลง 4:50 ใช้ GPU ~57 s ยังไม่ใช่คอขวดที่คุ้มความเสี่ยงเรื่องความแม่นยำ (หลักการ: แม่นยำก่อนเร็ว)

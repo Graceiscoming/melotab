@@ -11,7 +11,7 @@ from pathlib import Path
 from . import gp, midi, musicxml, render, text
 from .model import build, section_bar_range
 
-FORMATS = ("png", "svg", "pdf", "midi", "musicxml", "gp5", "txt", "chordsheet", "lrc", "stems")
+FORMATS = ("png", "svg", "pdf", "midi", "musicxml", "gp5", "txt", "chordsheet", "lrc", "stems", "video", "harmony")
 IMAGE_FORMATS = ("png", "svg", "pdf")
 
 
@@ -126,6 +126,33 @@ def run_export(project_dir: Path, song: dict, tab: dict | None, stem_path, req: 
             p = out_dir / f"{base}.lrc"
             p.write_text(text.lrc_text(song), encoding="utf-8")
             add(p, "lrc")
+    if "video" in formats:
+        if not has_tab:
+            skipped.append({"format": "video", "reason": "ยังไม่มีแทป (สร้างแทปก่อน)"})
+        else:
+            from . import video
+            for sec in (chosen or [None]):
+                p = out_dir / f"{numbered(sec)}.mp4"
+                video.render_video(model, sec, p, stem_path("mix"), fps=int(req.get("video_fps", 15)))
+                add(p, "video")
+    if "harmony" in formats:
+        from ..harmony import generate as gen_harmony
+        from ..tab import generate_tab
+        hs = req.get("harmony") or {}
+        try:
+            hn = gen_harmony(song.get("notes", []), song.get("key"), song.get("chords"), interval=hs.get("interval", "third"),
+                             direction=hs.get("direction", "above"))
+        except ValueError as e:
+            skipped.append({"format": "harmony", "reason": str(e)})
+        else:
+            hsong = {**song, "notes": hn, "chords": song.get("chords")}
+            p = out_dir / f"{base}_harmony.mid"
+            midi.write_midi(hsong, p, with_chords=False)
+            add(p, "harmony")
+            htab = generate_tab(hn, (tab or {}).get("settings") or {})
+            p = out_dir / f"{base}_harmony_tab.txt"
+            p.write_text(text.tab_document(build(hsong, htab, title + " (harmony)"), chosen or None), encoding="utf-8")
+            add(p, "harmony")
     if "stems" in formats:
         found = 0
         for st in ("vocals", "instrumental", "lead", "backing"):

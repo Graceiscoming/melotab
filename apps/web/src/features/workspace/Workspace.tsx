@@ -5,6 +5,7 @@ import type { TrackName } from '../../audio/transport'
 import { mergeNext, movePitch, needsReview, nextReview, remove, splitAt } from '../../store/edits'
 import { useStore } from '../../store/store'
 import { ExportDialog } from '../export/ExportDialog'
+import { PracticeView } from '../practice/PracticeView'
 import { PianoRoll } from '../pianoroll/PianoRoll'
 import { ChordSheet } from '../sheet/ChordSheet'
 import { TabPanel } from '../tab/TabPanel'
@@ -54,7 +55,7 @@ export function Workspace() {
   useEffect(() => { tr.synthOn = synth }, [synth, tr])
   useEffect(() => { tr.noteTranspose = view.mode === 'tab' ? tabSettings.transpose : 0 }, [view.mode, tabSettings.transpose, tr])
   // เข้าโหมดแทปครั้งแรกโดยยังไม่มีแทป → สร้างให้เลย
-  useEffect(() => { if (view.mode === 'tab' && !tab && song) void useStore.getState().regenerateTab() }, [view.mode]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if ((view.mode === 'tab' || view.mode === 'practice') && !tab && song) void useStore.getState().regenerateTab() }, [view.mode]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { tr.clickOn = click }, [click, tr])
   useEffect(() => { tr.setSplit(split) }, [split, tr])
   useEffect(() => { tr.countIn = countIn }, [countIn, tr])
@@ -168,9 +169,10 @@ export function Workspace() {
         <button className={view.mode === 'roll' ? 'on' : ''} onClick={() => setView({ mode: 'roll' })} data-testid="mode-roll">Piano Roll</button>
         <button className={view.mode === 'tab' ? 'on' : ''} onClick={() => setView({ mode: 'tab' })} data-testid="mode-tab">Guitar Tab</button>
         <button className={view.mode === 'sheet' ? 'on' : ''} onClick={() => setView({ mode: 'sheet' })} data-testid="mode-sheet">Chord Sheet</button>
+        <button className={view.mode === 'practice' ? 'on' : ''} onClick={() => setView({ mode: 'practice' })} data-testid="mode-practice">ซ้อม</button>
         {view.mode === 'tab' && <label className="heat"><input type="checkbox" checked={view.heatmap} onChange={(e) => setView({ heatmap: e.target.checked })} data-testid="heatmap" /> heatmap ความยาก (เขียว/เหลือง/แดง)</label>}
       </div>
-      {view.mode === 'roll' ? <PianoRoll /> : view.mode === 'sheet' ? <ChordSheet /> : <div className="tabarea"><TabView /><TabPanel /></div>}
+      {view.mode === 'roll' ? <PianoRoll /> : view.mode === 'sheet' ? <ChordSheet /> : view.mode === 'practice' ? <PracticeView /> : <div className="tabarea"><TabView /><TabPanel /></div>}
 
       <div className="transport">
         <button className="play" onClick={toggle} disabled={!ready} data-testid="play">{playing ? '⏸ หยุด' : '▶ เล่น'}</button>

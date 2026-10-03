@@ -19,7 +19,7 @@ interface View {
   pxPerSec: number
   labels: boolean
   snap: boolean
-  mode: 'roll' | 'tab' | 'sheet'
+  mode: 'roll' | 'tab' | 'sheet' | 'practice'
   heatmap: boolean
 }
 

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { api } from '../../api/client'
 import { useStore } from '../../store/store'
+import { BatchPanel, ModelManager } from './LibraryTools'
 
 const ACCEPT = '.mp3,.wav,.flac,.m4a,.ogg,.mp4,.webm,.opus,.mkv'
 
@@ -47,6 +48,9 @@ export function Library() {
         <label><input type="checkbox" checked={karaoke} onChange={(e) => setKaraoke(e.target.checked)} /> ตัดเสียงประสาน (karaoke) <span className="muted">— แม่นขึ้นถ้ามีเสียงประสาน แต่ช้า +~2 นาที/เพลง</span></label>
         <label><input type="checkbox" checked={dereverb} onChange={(e) => setDereverb(e.target.checked)} /> ลบ reverb <span className="muted">— +~1 นาที/เพลง</span></label>
       </div>
+
+      <BatchPanel karaoke={karaoke} dereverb={dereverb} />
+      <ModelManager />
 
       <h2>โปรเจกต์</h2>
       {projects.length === 0 ? <p className="muted">ยังไม่มีโปรเจกต์</p> : (

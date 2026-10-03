@@ -23,6 +23,8 @@ from ..jobs.manager import Job, JobManager
 from ..lyrics_task import realign, run_lyrics
 from ..retranscribe import retranscribe
 from ..export import render, run_export
+from ..harmony import generate as harmony_gen
+from ..models import delete_model, list_models
 from ..pipeline.ornaments import detect_ornaments, load_f0_midi
 from ..store import ProjectStore
 from .. import tab as tabmod
@@ -81,6 +83,24 @@ class ExportRequest(BaseModel):
     show_lyrics: bool = True
     watermark: str = ""
     midi_quantized: bool = False
+    video_fps: int = 15
+    harmony: dict = {}                     # {interval: third|sixth, direction: above|below}
+
+
+class BatchRequest(BaseModel):
+    paths: list[str] = []                  # ไฟล์เสียง/วิดีโอบนเครื่อง
+    folder: str | None = None              # หรือโฟลเดอร์ (เอาทุกไฟล์เสียง/วิดีโอข้างในที่รู้จัก ไม่เข้าโฟลเดอร์ย่อย)
+    options: AnalyzeOptions = AnalyzeOptions()
+
+
+AUDIO_EXTS = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".mp4", ".mkv", ".webm", ".mov"}
+
+
+class HarmonyRequest(BaseModel):
+    interval: str = "third"
+    direction: str = "above"
+    prefer_chord_tone: bool = True
+    settings: dict = {}
 
 
 class BlocksRequest(BaseModel):
@@ -143,8 +163,8 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
         manager.shutdown()
 
     app = FastAPI(title="MeloTab", lifespan=lifespan)
-    # dev server ของ Vite รันคนละ port → อนุญาตเฉพาะ origin ที่ระบุ (ค่าเริ่มต้น: localhost เท่านั้น)
-    app.add_middleware(CORSMiddleware, allow_origins=allow_origins or ["http://localhost:5173", "http://127.0.0.1:5173"],
+    # dev server ของ Vite / หน้าต่าง Tauri รันคนละ origin → อนุญาตเฉพาะ origin ที่ระบุ (ค่าเริ่มต้น: localhost + tauri เท่านั้น)
+    app.add_middleware(CORSMiddleware, allow_origins=allow_origins or ["http://localhost:5173", "http://127.0.0.1:5173", "http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"],
                        allow_methods=["*"], allow_headers=["*"])
     app.state.manager, app.state.store = manager, store
 
@@ -168,6 +188,52 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
             with open(tmp, "wb") as f:
                 shutil.copyfileobj(file.file, f)
             return store.create(tmp, title or Path(file.filename or "song").stem)
+
+    @app.post("/batch", status_code=202)
+    def batch(body: BatchRequest) -> dict:
+        """Batch Mode: สร้างโปรเจกต์ + ใส่คิววิเคราะห์ให้ทุกไฟล์ (คิวทำทีละงานตามลำดับ — ปล่อยทิ้งข้ามคืนได้)"""
+        files = [Path(p) for p in body.paths]
+        if body.folder:
+            d = Path(body.folder)
+            if not d.is_dir():
+                raise HTTPException(404, f"ไม่พบโฟลเดอร์ {body.folder}")
+            files += sorted(f for f in d.iterdir() if f.is_file() and f.suffix.lower() in AUDIO_EXTS)
+        if not files:
+            raise HTTPException(422, "ไม่มีไฟล์ให้ประมวลผล")
+        created, errors = [], []
+        for f in files:
+            try:
+                proj = store.create(f, None)
+                created.append({"project": proj, "job": manager.submit(proj["id"], body.options.model_dump()).public()})
+            except FileNotFoundError:
+                errors.append({"path": str(f), "error": "ไม่พบไฟล์"})
+            except Exception as e:                       # ไฟล์เสียหาย ฯลฯ ไม่ให้ล้มทั้งชุด
+                errors.append({"path": str(f), "error": str(e)})
+        return {"created": created, "errors": errors}
+
+    @app.get("/models")
+    def models_list() -> dict:
+        return list_models()
+
+    @app.delete("/models/{model_id}")
+    def models_delete(model_id: str) -> dict:
+        try:
+            return {"freed_bytes": delete_model(model_id)}
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+
+    @app.post("/projects/{pid}/harmony")
+    def harmony_preview(pid: str, body: HarmonyRequest) -> dict:
+        song = _song_or_404(pid)
+        try:
+            notes = harmony_gen(song["notes"], song.get("key"), song.get("chords"), interval=body.interval, direction=body.direction,
+                                prefer_chord_tone=body.prefer_chord_tone)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        tab = tabmod.generate_tab(notes, _check_settings(body.settings))
+        from ..export.model import build
+        from ..export.text import tab_text
+        return {"notes": notes, "tab": tab, "text": tab_text(build({**song, "notes": notes}, tab), None)}
 
     @app.get("/projects")
     def list_projects() -> list[dict]:

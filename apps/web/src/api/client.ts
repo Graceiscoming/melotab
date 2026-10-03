@@ -44,6 +44,12 @@ export const api = {
   alternatives: (id: string, noteId: string, settings: TabSettings, locked: Record<string, FretPos>, notes: Note[]) =>
     post(`/projects/${encodeURIComponent(id)}/tab/alternatives`, { note_id: noteId, settings, locked, notes }).then(j<Alternative[]>),
   exportProject: (id: string, body: unknown) => post(`/projects/${encodeURIComponent(id)}/export`, body).then(j<{ dir: string; files: { name: string; size: number; format: string }[]; skipped: { format: string; reason: string }[] }>),
+  batch: (body: { paths: string[]; folder: string | null; options: { karaoke: boolean; dereverb: boolean } }) =>
+    post('/batch', body).then(j<{ created: { project: ProjectMeta }[]; errors: { path: string; error: string }[] }>),
+  models: () => fetch(`${API}/models`).then(j<{ models: { id: string; name: string; role: string; present: boolean; size_bytes: number; vram_gb: number; required: boolean; deletable: boolean }[]; total_bytes: number; disk_free_bytes: number; models_dir: string }>),
+  deleteModel: (id: string) => fetch(`${API}/models/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(j<{ freed_bytes: number }>),
+  harmony: (id: string, body: { interval: string; direction: string; settings: TabSettings }) =>
+    post(`/projects/${encodeURIComponent(id)}/harmony`, body).then(j<{ notes: Note[]; tab: TabResult; text: string }>),
   autoTechniques: (id: string, settings: TabSettings, locked: Record<string, FretPos>, notes: Note[]) =>
     post(`/projects/${encodeURIComponent(id)}/tab/techniques/auto`, { settings, locked, notes }).then(j<TechSuggestion>),
   blocks: (id: string, body: { system: string; transpose: number; capo: number; tuning: string; selected: Block[]; notes: Note[] }) =>

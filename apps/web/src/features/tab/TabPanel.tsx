@@ -25,6 +25,7 @@ export function TabPanel() {
   const [coverage, setCoverage] = useState<number | null>(null)
   const [custom, setCustom] = useState({ min: 5, max: 9 })
   const [alts, setAlts] = useState<Alternative[] | null>(null)
+  const [harm, setHarm] = useState<{ text: string; interval: string; direction: string } | 'loading' | null>(null)
   const [autoMsg, setAutoMsg] = useState('')
   const [suggest, setSuggest] = useState<KeySuggestion | 'loading' | null>(null)
 
@@ -71,6 +72,11 @@ export function TabPanel() {
       setAutoMsg(`ใส่เทคนิค ${r.added} โน้ต (ข้ามที่คุณใส่เองแล้ว ${r.skipped}, ตรวจพบ ornament ${sug.ornaments}, ทำไม่ได้จริง ${sug.rejected.length})`)
     } catch (e) { setAutoMsg(''); useStore.getState().setError(String(e)) }
   }
+  async function loadHarmony(interval = 'third', direction = 'above') {
+    if (!currentId) return
+    setHarm('loading')
+    try { const r = await api.harmony(currentId, { interval, direction, settings: S }); setHarm({ text: r.text, interval, direction }) } catch (e) { setHarm(null); useStore.getState().setError(String(e)) }
+  }
   async function loadSuggest() {
     if (!currentId || !notes) return
     setSuggest('loading')
@@ -97,6 +103,7 @@ export function TabPanel() {
           <button onClick={() => void loadSuggest()} data-testid="suggest-btn">แนะนำคีย์ / Capo</button>
           <button onClick={() => void autoTech()} disabled={!tab} title="แปลงลูกคอเสียงร้อง (vibrato/สไลด์/ไต่เสียง/ลากต่อ) เป็น ~ / b h p slide ตามกติกาที่เล่นได้จริง — ไม่ทับที่คุณใส่เอง" data-testid="auto-tech">เทคนิคอัตโนมัติ</button>
         </div>
+        <div className="row"><button onClick={() => void loadHarmony()} title="สร้างไลน์ประสาน 3rd/6th ในคีย์ของเพลงเป็นแทปอีกชุด (twin guitar)" data-testid="harmony-btn">ไลน์ประสาน (twin guitar)</button></div>
         {autoMsg && <div className="muted small" data-testid="auto-tech-msg">{autoMsg}</div>}
         <div className="muted small">โน้ตที่ล็อก (🔒) จะไม่ถูกเปลี่ยนเมื่อสร้างใหม่ — ตำแหน่งที่คุณแก้เองจะถูกล็อกให้อัตโนมัติ</div>
       </section>
@@ -182,6 +189,24 @@ export function TabPanel() {
         )}
       </section>
 
+      {harm && (
+        <div className="modal" data-testid="harmony-modal" onClick={() => setHarm(null)}>
+          <div className="modalbox" onClick={(e) => e.stopPropagation()}>
+            <div className="row"><b>ไลน์ประสาน</b>
+              {harm !== 'loading' && <>
+                <select value={harm.interval} onChange={(e) => void loadHarmony(e.target.value, harm.direction)}><option value="third">3rd</option><option value="sixth">6th</option></select>
+                <select value={harm.direction} onChange={(e) => void loadHarmony(harm.interval, e.target.value)}><option value="above">เหนือเมโลดี้</option><option value="below">ใต้เมโลดี้</option></select>
+              </>}
+              <span className="spacer" /><button onClick={() => setHarm(null)}>ปิด</button></div>
+            {harm === 'loading' ? <p className="muted">กำลังสร้าง…</p> : (
+              <>
+                <p className="muted small">เดินตามขั้นของสเกลในคีย์หลัก (เลือกโน้ตที่เป็นโน้ตของคอร์ดก่อนถ้ามี) — ยังไม่ได้ฟังตรวจกับเพลงจริง · export เป็น MIDI+tab ได้ที่ปุ่ม Export → "ไลน์ประสาน"</p>
+                <pre className="harmtab" data-testid="harmony-text">{harm.text}</pre>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {suggest && (
         <div className="modal" data-testid="suggest-modal" onClick={() => setSuggest(null)}>
           <div className="modalbox" onClick={(e) => e.stopPropagation()}>
