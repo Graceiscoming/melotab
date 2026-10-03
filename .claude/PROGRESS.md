@@ -15,8 +15,11 @@
 
 ## ทำต่อ (ลำดับถัดไป)
 - [x] Phase 0 — ตั้ง Python env (backend/.venv) + PyTorch cu130 + ชุดแกน (CUDA ใช้ได้, pip check ผ่าน) ยังไม่ commit
-- [ ] **ยกไป Phase 1**: โครงสร้างโฟลเดอร์ repo ตามหัวข้อ 21 (ตอนนี้มีแค่ backend/scripts)
-- [ ] **ยกไป Phase 1**: สคริปต์เดียว ไฟล์เสียง/ลิงก์ → MIDI เมโลดี้ (เกณฑ์ Done ของ Phase 0 ที่ยังไม่ครบ; YouTube ติด 403 ใช้ไฟล์ที่โหลดเองไปก่อน)
+- [x] Phase 1 — โครงสร้าง backend/melotab (config, gpu, audio, pipeline, song, cli) + เทสต์ตรรกะ
+- [x] Phase 1 — CLI `python -m melotab.cli analyze` ไฟล์เสียง → song.json + melody.mid (ลิงก์ YouTube ยังไม่ได้: ติด 403)
+- [ ] Phase 1 — ถัดไป: Job orchestrator + cache content-hash + WebSocket progress (FastAPI)
+- [ ] Phase 1 — Project save/load (โฟลเดอร์ Projects/ + SQLite index)
+- [ ] Phase 1 — Frontend: React+Vite, Import, Piano Roll (PixiJS) + เล่นเสียง/playhead, Status bar
 - [x] Phase 1 — รวม environment: SOME/BTC/Beat This! ใช้ได้ใน `.venv` หลัก (torch 2.14) แล้ว; whisperx เลื่อนไป Phase 4
 - [ ] **ยกไป Phase 2**: ROSVOT, essentia/allin1 (ลงไม่ผ่านบน Windows), เทียบ karaoke model ตัวอื่น, ทดสอบเพลงยาก/ประสานแน่น, ground truth ของจริง
 - [x] Phase 0 — ลองติดตั้งตัวเสี่ยงใน .venv-spike: beat-this/faster-whisper/whisperx/pythainlp ผ่าน; essentia/madmom ล้มบน Windows; allin1 import ไม่ได้ (ดู DECISIONS.md) — ยังไม่ commit

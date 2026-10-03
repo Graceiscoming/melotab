@@ -130,3 +130,14 @@
 - ยืนยันผลเหมือน `.venv-spike`: BTC ได้ไฟล์ .lab **ตรงกันทุกไบต์**, SOME ได้ 769 โน้ตเท่ากันบน lead เดียวกัน, Beat This! ได้ผลบน GPU
 - **การตัดสินใจ**: ใช้ `backend/.venv` เป็น environment หลักเดียว; `whisperx` (ต้องการ torch 2.8) เลื่อนไป Phase 4 — ตอนนั้นเลือกระหว่าง ใช้ faster-whisper + alignment แยก / worker แยก venv; `.venv-spike` เก็บไว้อ้างอิงได้ ลบทิ้งได้เมื่อไม่ต้องการ
 - อัปเดต `backend/requirements.txt` (ส่วนตัวที่ใช้ได้แล้ว + วิธีดึงโค้ด SOME/RMVPE/BTC) และ `requirements-lock.txt`
+
+## 2026-10-03 — Phase 1 ขั้นที่ 2: pipeline เป็นโมดูล + CLI (`backend/melotab/`)
+- โครงสร้าง: `config.py`, `gpu.py` (ปลด VRAM หลังแต่ละขั้น), `audio.py` (ffmpeg → wav 44.1k + sha256), `pipeline/{separation,f0,notes,rhythm,key}.py`, `song.py` (ประกอบ song.json + export MIDI), `cli.py`
+- รัน: `cd backend && .venv\Scripts\python -m melotab.cli analyze ไฟล์.mp3 --out ผลลัพธ์ [--karaoke] [--dereverb]` → `song.json`, `melody.mid`, `audio/stems/*.flac`, `analysis/f0.npz`
+- **ผลทดสอบ (ไม่ใช้ karaoke)**: song01 (49 s) ทั้ง pipeline 19 s → 150 โน้ต, key F# major, BPM 90.9; song02 (4:50) 50 s → 807 โน้ต, key D major (ตรงกับคอร์ด BTC), BPM 127.7 (แก้ปัญหา tempo ครึ่ง/เท่าตัวด้วยการพับ BPM เข้าช่วง 70–160 ซึ่งตรงกับสมมติฐานจาก Phase 0 แต่ **ยังไม่ได้ฟังยืนยัน**)
+- ตัดสินใจออกแบบ:
+  - SOME/RMVPE เรียก in-process (เพิ่ม `third_party/SOME` เข้า sys.path) แต่ **BTC เรียกแบบ in-process ไม่ได้** เพราะแพ็กเกจ `utils` ชื่อชนกับของ SOME → ตอนทำ chord (Phase 4) ใช้ subprocess หรือ vendor โค้ดแล้วเปลี่ยนชื่อแพ็กเกจ
+  - confidence ของโน้ตเป็น heuristic จากความสอดคล้องกับ median f0 (SOME ไม่ให้ confidence) และ `octave_suspect` = ต่าง ≥ 11 semitone จาก f0 → แค่ติดธง ไม่แก้โน้ตเอง (ให้คนตรวจ) ยังไม่ผ่านการสอบเทียบกับ ground truth
+  - key ใช้ Krumhansl-Schmuckler บนฮิสโทแกรมโน้ตเมโลดี้ (ยังไม่ใช้ chroma/คอร์ด/key change — Phase 4); `score` = สหสัมพันธ์ ไม่ใช่ความน่าจะเป็น
+  - `song.json` เป็นเวอร์ชันย่อของ plan หัวข้อ 19 (ยังไม่มี chords/sections/lyrics/tempo map ละเอียด/ornaments)
+- เทสต์: `backend/tests/test_song_logic.py` 6 ข้อ (key, ตำแหน่ง beat เมื่อ tempo เปลี่ยน, confidence/octave flag, unvoiced, export MIDI) ผ่านทั้งหมด; **ส่วน GPU/โมเดลทดสอบด้วยการรันจริง 2 เพลง ยังไม่มี test อัตโนมัติ**
