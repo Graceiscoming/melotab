@@ -1,4 +1,4 @@
-import type { F0Curve, JobInfo, ProjectFull, ProjectMeta, Song } from '../types'
+import type { Alternative, BlocksResponse, Block, F0Curve, FretPos, JobInfo, KeySuggestion, Note, ProjectFull, ProjectMeta, Song, TabResult, TabSettings } from '../types'
 
 export const API = (import.meta.env.VITE_API as string | undefined) ?? 'http://localhost:8000'
 
@@ -35,6 +35,17 @@ export const api = {
     post(`/projects/${encodeURIComponent(id)}/retranscribe`, opts).then(j<Song>),
   history: (id: string) => fetch(`${API}/projects/${encodeURIComponent(id)}/history`).then(j<string[]>),
   restore: (id: string, name: string) => post(`/projects/${encodeURIComponent(id)}/history/${name}/restore`).then(j<Song>),
+  getTab: (id: string) => fetch(`${API}/projects/${encodeURIComponent(id)}/tab`).then(j<Partial<TabResult> & { techniques?: Record<string, unknown> }>),
+  saveTab: (id: string, tab: unknown) =>
+    fetch(`${API}/projects/${encodeURIComponent(id)}/tab`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tab) }).then(j<{ ok: boolean }>),
+  generateTab: (id: string, settings: TabSettings, locked: Record<string, FretPos>, notes: Note[]) =>
+    post(`/projects/${encodeURIComponent(id)}/tab/generate`, { settings, locked, notes }).then(j<TabResult>),
+  alternatives: (id: string, noteId: string, settings: TabSettings, locked: Record<string, FretPos>, notes: Note[]) =>
+    post(`/projects/${encodeURIComponent(id)}/tab/alternatives`, { note_id: noteId, settings, locked, notes }).then(j<Alternative[]>),
+  blocks: (id: string, body: { system: string; transpose: number; capo: number; tuning: string; selected: Block[]; notes: Note[] }) =>
+    post(`/projects/${encodeURIComponent(id)}/tab/blocks`, body).then(j<BlocksResponse>),
+  suggestKeys: (id: string, settings: Partial<TabSettings>, notes: Note[]) =>
+    post(`/projects/${encodeURIComponent(id)}/keys/suggest`, { settings, notes }).then(j<KeySuggestion>),
   audioUrl: (id: string, stem: string) => `${API}/audio/${encodeURIComponent(id)}/${stem}`,
 }
 

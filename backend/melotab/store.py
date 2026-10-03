@@ -99,6 +99,18 @@ class ProjectStore:
         tmp.write_text(json.dumps(song, ensure_ascii=False, indent=1), encoding="utf-8")
         tmp.replace(d / "song.json")
 
+    def tab(self, project_id: str) -> dict | None:
+        f = self.path(project_id) / "tab.json"
+        return json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
+
+    def save_tab(self, project_id: str, tab: dict) -> None:
+        d = self.path(project_id)
+        if not (d / "project.json").exists():
+            raise FileNotFoundError(project_id)
+        tmp = d / "tab.json.tmp"
+        tmp.write_text(json.dumps(tab, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.replace(d / "tab.json")
+
     HISTORY_EVERY_S = 120
     HISTORY_KEEP = 20
 

@@ -22,6 +22,8 @@ from ..cache import StageCache
 from ..jobs.manager import Job, JobManager
 from ..retranscribe import retranscribe
 from ..store import ProjectStore
+from .. import tab as tabmod
+from ..tab.theory import TUNINGS
 
 
 class NewProject(BaseModel):
@@ -41,6 +43,26 @@ class RetranscribeOptions(BaseModel):
     fix_octave: bool = True
     min_dur_ms: float = 0.0
     merge_gap_ms: float = 0.0
+
+
+class TabRequest(BaseModel):
+    settings: dict = {}
+    locked: dict[str, dict] = {}
+    notes: list[dict] | None = None        # โน้ตปัจจุบันจากหน้าจอ (ถ้าไม่ส่ง ใช้ song.json ที่บันทึกไว้)
+
+
+class AltRequest(TabRequest):
+    note_id: str
+
+
+class BlocksRequest(BaseModel):
+    system: str = "position"               # position | pentatonic
+    transpose: int = 0
+    capo: int = 0
+    tuning: str = "standard"
+    key: dict | None = None                # ไม่ส่ง = ใช้คีย์ใน song.json
+    selected: list[dict] = []              # block ที่เลือก (ใช้คำนวณ coverage)
+    notes: list[dict] | None = None
 
 
 class _Hub:
@@ -168,6 +190,79 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
             return store.restore(pid, name)
         except (FileNotFoundError, ValueError):
             raise HTTPException(404, "ไม่พบ snapshot")
+
+    # ---------------- Tab Engine ----------------
+    def _song_or_404(pid: str) -> dict:
+        try:
+            song = store.song(pid)
+        except ValueError:
+            song = None
+        if song is None:
+            raise HTTPException(404, "ยังไม่มีโน้ต (ยังไม่ได้วิเคราะห์)")
+        return song
+
+    def _check_settings(s: dict) -> dict:
+        if s.get("tuning", "standard") not in TUNINGS:
+            raise HTTPException(422, f"tuning ไม่รู้จัก: {s.get('tuning')}")
+        if not -12 <= int(s.get("transpose", 0)) <= 12 or not 0 <= int(s.get("capo", 0)) <= 12:
+            raise HTTPException(422, "transpose ต้องอยู่ใน −12…12 และ capo ใน 0…12")
+        return s
+
+    @app.get("/projects/{pid}/tab")
+    def get_tab(pid: str) -> dict:
+        try:
+            return store.tab(pid) or {}
+        except ValueError:
+            raise HTTPException(404, "ไม่พบโปรเจกต์")
+
+    @app.put("/projects/{pid}/tab")
+    def put_tab(pid: str, tab: dict) -> dict:
+        if "events" not in tab:
+            raise HTTPException(422, "tab ต้องมี events")
+        try:
+            store.save_tab(pid, tab)
+        except (FileNotFoundError, ValueError):
+            raise HTTPException(404, "ไม่พบโปรเจกต์")
+        return {"ok": True, "events": len(tab["events"])}
+
+    @app.post("/projects/{pid}/tab/generate")
+    def tab_generate(pid: str, body: TabRequest) -> dict:
+        notes = body.notes if body.notes is not None else _song_or_404(pid)["notes"]
+        res = tabmod.generate_tab(notes, _check_settings(body.settings), body.locked)
+        res["locked"] = body.locked
+        store.save_tab(pid, res)
+        return res
+
+    @app.post("/projects/{pid}/tab/alternatives")
+    def tab_alternatives(pid: str, body: AltRequest) -> list[dict]:
+        notes = body.notes if body.notes is not None else _song_or_404(pid)["notes"]
+        return tabmod.alternatives(notes, _check_settings(body.settings), body.locked, body.note_id)
+
+    @app.post("/projects/{pid}/tab/blocks")
+    def tab_blocks(pid: str, body: BlocksRequest) -> dict:
+        song = _song_or_404(pid)
+        key = body.key or song.get("key")
+        if not key:
+            raise HTTPException(422, "ไม่มีคีย์ของเพลง ระบุ key เองได้")
+        if body.tuning not in TUNINGS:
+            raise HTTPException(422, "tuning ไม่รู้จัก")
+        from ..tab.theory import NOTE_NAMES, pc_of
+        tonic = NOTE_NAMES[(pc_of(key["tonic"]) + body.transpose) % 12]       # คีย์ของเสียงที่เล่นจริงหลัง transpose
+        blocks = tabmod.generate_blocks(tonic, key["mode"], TUNINGS[body.tuning], body.capo, body.system)
+        notes = body.notes if body.notes is not None else song["notes"]
+        pitches = [n["midi"] + body.transpose for n in notes]
+        cov = tabmod.coverage(pitches, body.selected, TUNINGS[body.tuning], body.capo) if body.selected else None
+        return {"tonic": tonic, "mode": key["mode"], "blocks": blocks, "coverage": cov}
+
+    @app.post("/projects/{pid}/keys/suggest")
+    def keys_suggest(pid: str, body: TabRequest) -> dict:
+        song = _song_or_404(pid)
+        notes = body.notes if body.notes is not None else song["notes"]
+        return tabmod.suggest(notes, song.get("key"), _check_settings(body.settings))
+
+    @app.get("/tab/presets")
+    def tab_presets() -> dict:
+        return {"presets": list(tabmod.PRESETS), "tunings": list(TUNINGS)}
 
     @app.post("/projects/{pid}/analyze", status_code=202)
     def analyze(pid: str, opts: AnalyzeOptions | None = None) -> dict:

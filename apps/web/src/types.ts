@@ -58,3 +58,69 @@ export interface SystemStats {
   cpu_pct: number; ram_used_gb: number; ram_total_gb: number
   gpu: { name: string; util_pct: number; vram_used_gb: number; vram_total_gb: number; temp_c: number } | null
 }
+
+// ---------------- Guitar Tab (Phase 3) ----------------
+export interface Block {
+  id: string
+  label: string
+  system: 'position' | 'pentatonic' | 'custom'
+  fret_min: number
+  fret_max: number
+  pcs: number[]
+}
+
+export type TabWarning = 'hard_shift' | 'stretch' | 'unplayable' | 'out_of_block' | 'octave_shifted'
+
+export interface Techniques {
+  in?: string          // slide_in | grace
+  on?: string[]        // vibrato | bend | let_ring
+  to_next?: string     // hammer | pull | slide
+  [k: string]: unknown
+}
+
+export interface TabEvent {
+  id: string
+  note_id: string
+  pitch: number
+  string: number | null
+  fret: number | null
+  start: number
+  end: number
+  start_beat: number | null
+  dur_beats: number | null
+  techniques: Techniques
+  bend: number | null
+  finger: number | null
+  locked: boolean
+  difficulty: number
+  warnings: TabWarning[]
+  anchor?: number
+  octave_shifted?: number
+}
+
+export interface TabSettings {
+  transpose: number
+  capo: number
+  tuning: string
+  max_fret: number
+  blocks: Block[]
+  block_mode: 'single' | 'multi'
+  out_of_block: 'octave_shift' | 'stretch' | 'warn'
+  preset: string
+}
+
+export interface TabSummary {
+  notes: number; playable: number; total_cost: number; difficulty: number
+  hard: number; unplayable: number; out_of_block: number; octave_shifted: number
+}
+
+export interface TabResult { settings: TabSettings; events: TabEvent[]; summary: TabSummary; locked?: Record<string, FretPos> }
+export interface FretPos { string: number; fret: number }
+
+export interface KeyOption {
+  transpose: number; capo: number; kind: 'same_sound' | 'transposed'; shape_key: string; sounding_key: string
+  score: number; difficulty: number; hard: number; unplayable: number; friendly: boolean
+}
+export interface KeySuggestion { original_key: string; same_sound: KeyOption[]; transposed: KeyOption[]; best: KeyOption | null }
+export interface Alternative { string: number; fret: number; pitch: number; delta_cost: number; hard: number }
+export interface BlocksResponse { tonic: string; mode: string; blocks: Block[]; coverage: number | null }

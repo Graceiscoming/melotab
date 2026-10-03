@@ -150,3 +150,47 @@ def test_history_snapshots_and_restore(tmp_path, audio_file):
     import pytest as _p
     with _p.raises(ValueError):
         st.restore(pid, "../../etc/passwd")
+
+
+def _song_with_notes(c, audio_file):
+    pid = c.post("/projects", json={"source_path": str(audio_file)}).json()["id"]
+    notes = [{"id": f"n{i}", "midi": m, "start": i * 0.5, "end": i * 0.5 + 0.4, "start_beat_q": i, "dur_beats_q": 0.8}
+             for i, m in enumerate([60, 62, 64, 65, 67, 69, 71, 72])]
+    song = {"notes": notes, "key": {"tonic": "C", "mode": "major"}, "beats": []}
+    assert c.put(f"/projects/{pid}/song", json=song).status_code == 200
+    return pid, notes
+
+
+def test_tab_endpoints(tmp_path, audio_file):
+    from melotab.tab.theory import TUNINGS, pitch_at
+    with make_client(tmp_path, fake_runner) as c:
+        pid, notes = _song_with_notes(c, audio_file)
+        assert c.get(f"/projects/{pid}/tab").json() == {}                              # ยังไม่เคยสร้าง
+        r = c.post(f"/projects/{pid}/tab/generate", json={"settings": {"capo": 2}}).json()
+        assert len(r["events"]) == 8 and r["summary"]["unplayable"] == 0
+        for e, n in zip(r["events"], notes):
+            assert pitch_at(e["string"], e["fret"], TUNINGS["standard"], 2) == n["midi"]
+        assert c.get(f"/projects/{pid}/tab").json()["settings"]["capo"] == 2           # เก็บลง tab.json แล้ว
+        lock = {"n2": {"string": 3, "fret": 9}}
+        r2 = c.post(f"/projects/{pid}/tab/generate", json={"settings": {}, "locked": lock}).json()
+        assert (r2["events"][2]["string"], r2["events"][2]["fret"]) == (3, 9) and r2["events"][2]["locked"]
+        alts = c.post(f"/projects/{pid}/tab/alternatives", json={"note_id": "n3", "settings": {}}).json()
+        assert alts and all(a["pitch"] == 65 for a in alts)
+        b = c.post(f"/projects/{pid}/tab/blocks", json={"system": "pentatonic", "transpose": 2}).json()
+        assert b["tonic"] == "D" and len(b["blocks"]) >= 3 and b["coverage"] is None
+        b2 = c.post(f"/projects/{pid}/tab/blocks", json={"selected": b["blocks"][:1]}).json()
+        assert 0.0 <= b2["coverage"] <= 1.0
+        s = c.post(f"/projects/{pid}/keys/suggest", json={"settings": {}}).json()
+        assert s["same_sound"] and s["transposed"] and s["best"]["unplayable"] == 0
+        assert c.get("/tab/presets").json()["tunings"][0] == "standard"
+
+
+def test_tab_endpoints_validate_input(tmp_path, audio_file):
+    with make_client(tmp_path, fake_runner) as c:
+        pid = c.post("/projects", json={"source_path": str(audio_file)}).json()["id"]
+        assert c.post(f"/projects/{pid}/tab/generate", json={}).status_code == 404       # ยังไม่มีโน้ต
+        pid, _ = _song_with_notes(c, audio_file)
+        assert c.post(f"/projects/{pid}/tab/generate", json={"settings": {"tuning": "nope"}}).status_code == 422
+        assert c.post(f"/projects/{pid}/tab/generate", json={"settings": {"capo": 99}}).status_code == 422
+        assert c.put(f"/projects/{pid}/tab", json={"x": 1}).status_code == 422
+        assert c.put("/projects/nope/tab", json={"events": []}).status_code == 404

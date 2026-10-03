@@ -12,7 +12,8 @@
     "e2e": "node e2e/smoke.mjs",
     "e2e:upload": "node e2e/upload.mjs",
     "e2e:edit": "node e2e/edit.mjs",
-    "e2e:sens": "node e2e/sens.mjs"
+    "e2e:sens": "node e2e/sens.mjs",
+    "e2e:tab": "node e2e/tab.mjs"
   },
   "dependencies": {
     "pixi.js": "^8.22.0",

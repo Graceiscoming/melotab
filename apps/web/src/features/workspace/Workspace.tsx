@@ -5,6 +5,8 @@ import type { TrackName } from '../../audio/transport'
 import { mergeNext, movePitch, needsReview, nextReview, remove, splitAt } from '../../store/edits'
 import { useStore } from '../../store/store'
 import { PianoRoll } from '../pianoroll/PianoRoll'
+import { TabPanel } from '../tab/TabPanel'
+import { TabView } from '../tab/TabView'
 
 const fmt = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`
 const TRACK_LABEL: Record<TrackName, string> = {
@@ -13,7 +15,7 @@ const TRACK_LABEL: Record<TrackName, string> = {
 const SAVE_LABEL = { saved: '✓ บันทึกแล้ว', dirty: '● มีการแก้ไข', saving: '… กำลังบันทึก', error: '✗ บันทึกไม่สำเร็จ' } as const
 
 export function Workspace() {
-  const { song, currentId, view, setView, selectedNoteId, closeProject, setError, saveState, past, future } = useStore()
+  const { song, currentId, view, setView, selectedNoteId, closeProject, setError, saveState, past, future, tab, tabSettings } = useStore()
   const tr = getTransport()
   const [playing, setPlaying] = useState(false)
   const [track, setTrack] = useState<TrackName>('mix')
@@ -43,6 +45,9 @@ export function Workspace() {
   // ส่งโน้ต/beat ล่าสุดให้ transport (synth + metronome ใช้ข้อมูลที่แก้แล้วทันที)
   useEffect(() => { if (song) tr.setSong(song.notes, song.beats) }, [song, tr])
   useEffect(() => { tr.synthOn = synth }, [synth, tr])
+  useEffect(() => { tr.noteTranspose = view.mode === 'tab' ? tabSettings.transpose : 0 }, [view.mode, tabSettings.transpose, tr])
+  // เข้าโหมดแทปครั้งแรกโดยยังไม่มีแทป → สร้างให้เลย
+  useEffect(() => { if (view.mode === 'tab' && !tab && song) void useStore.getState().regenerateTab() }, [view.mode]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { tr.clickOn = click }, [click, tr])
   useEffect(() => { tr.setSplit(split) }, [split, tr])
 
@@ -86,6 +91,7 @@ export function Workspace() {
       if (mod && e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) st.redo(); else st.undo(); return }
       if (mod && e.code === 'KeyY') { e.preventDefault(); st.redo(); return }
       if (e.code === 'KeyN') { jumpToReview(); return }
+      if (st.view.mode === 'tab') return   // ปุ่มที่เหลือเป็นของตัวแก้ไขแทป (TabView)
       if (!id) return
       if (e.code === 'Delete' || e.code === 'Backspace') { e.preventDefault(); st.editNotes((ns) => remove(ns, id), null) }
       else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
@@ -141,7 +147,12 @@ export function Workspace() {
       {panel === 'sens' && <SensitivityPanel onClose={() => setPanel('')} />}
       {panel === 'history' && <HistoryPanel onClose={() => setPanel('')} />}
 
-      <PianoRoll />
+      <div className="modetabs">
+        <button className={view.mode === 'roll' ? 'on' : ''} onClick={() => setView({ mode: 'roll' })} data-testid="mode-roll">Piano Roll</button>
+        <button className={view.mode === 'tab' ? 'on' : ''} onClick={() => setView({ mode: 'tab' })} data-testid="mode-tab">Guitar Tab</button>
+        {view.mode === 'tab' && <label className="heat"><input type="checkbox" checked={view.heatmap} onChange={(e) => setView({ heatmap: e.target.checked })} data-testid="heatmap" /> heatmap ความยาก (เขียว/เหลือง/แดง)</label>}
+      </div>
+      {view.mode === 'roll' ? <PianoRoll /> : <div className="tabarea"><TabView /><TabPanel /></div>}
 
       <div className="transport">
         <button className="play" onClick={toggle} disabled={!ready} data-testid="play">{playing ? '⏸ หยุด' : '▶ เล่น'}</button>

@@ -1,7 +1,7 @@
 # สถานะโปรเจกต์ MeloTab (เขียนทับทุกครั้งที่จบงาน)
 
 **อัปเดตล่าสุด**: 2026-10-03
-**Phase ปัจจุบัน**: Phase 3 (Tab Engine) — Phase 0, 1, 2 จบแล้ว
+**Phase ปัจจุบัน**: Phase 4 (ทฤษฎีดนตรีครบ + Chord Sheet + Metronome) — Phase 0–3 จบแล้ว
 
 ## ทำเสร็จแล้ว
 - [x] เขียนแผนออกแบบ `plan.md` (25 หัวข้อ + ภาคผนวก)
@@ -43,7 +43,7 @@
 - [x] Phase 0 — Setup & Spike (จบแบบมีเงื่อนไข ดูรายการยกไปด้านบน)
 - [x] Phase 1 — MVP หลังบ้าน + หน้าบ้านพื้นฐาน
 - [x] Phase 2 — ความแม่นยำ (สำคัญสุด) (ยังไม่ได้วัด Note F1 กับ ground truth จริง ต้องมี MIDI ที่แกะมือ)
-- [ ] Phase 3 — Tab Engine + Editor
+- [x] Phase 3 — Tab Engine + Editor (น้ำหนักต้นทุน/ความยากยังไม่ปรับกับนักกีตาร์จริง; editor ยังขาด time-nudge/ripple/คลิกขวา/finger)
 - [ ] Phase 4 — ทฤษฎีดนตรีครบ + Chord Sheet + Metronome
 - [ ] Phase 5 — เทคนิคกีตาร์ + Export
 - [ ] Phase 6 — ขัดเกลา & ฟีเจอร์เสริม

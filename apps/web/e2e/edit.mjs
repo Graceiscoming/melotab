@@ -96,13 +96,10 @@ check('ลากขอบขวา → โน้ตยาวขึ้น', n2.en
 const mid = (n2.start + n2.end) / 2
 const countBefore = (await S()).notes.length
 await page.evaluate((id) => window.__melotab.getState().selectNote(id), target.id)
-await page.evaluate(async (t) => {
-  const { getTransport } = await import('/src/audio/instance.ts')
-  getTransport().seek(t)
-}, mid)
+await page.evaluate((t) => window.__getTransport().seek(t), mid)
 await page.keyboard.press('KeyS')
 await sleep(200)
-check('S แบ่งโน้ตเป็นสอง', (await S()).notes.length === countBefore + 1)
+{ const s = await S(); check('S แบ่งโน้ตเป็นสอง', s.notes.length === countBefore + 1, `count ${countBefore}→${s.notes.length} sel=${s.sel} target=${target.id} mode=${await page.evaluate(() => window.__melotab.getState().view.mode)} active=${await page.evaluate(() => document.activeElement?.tagName)}`) }
 await page.keyboard.press('KeyM')
 await sleep(200)
 check('M รวมกลับ', (await S()).notes.length === countBefore)

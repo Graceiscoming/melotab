@@ -33,6 +33,7 @@ export class Transport {
   synthOn = false
   clickOn = false
   clickOffset = 0 // วินาที ชดเชย latency (หูฟัง bluetooth)
+  noteTranspose = 0 // semitone: ให้ synth โน้ตเล่นตามคีย์ที่ยกในแทป (ฟังแทปที่เล่นจริง)
   onEnded: (() => void) | null = null
 
   constructor() {
@@ -159,7 +160,7 @@ export class Transport {
     const toCtx = (songTime: number) => this.startedAt + (songTime - this.offset)
     while (this.noteIdx < this.notes.length && this.notes[this.noteIdx].start < horizon) {
       const n = this.notes[this.noteIdx++]
-      if (this.synthOn && n.start >= now - 0.02) this.blip(midiToHz(n.midi), toCtx(n.start), Math.max(0.06, n.end - n.start))
+      if (this.synthOn && n.start >= now - 0.02) this.blip(midiToHz(n.midi + this.noteTranspose), toCtx(n.start), Math.max(0.06, n.end - n.start))
     }
     while (this.beatIdx < this.beats.length && this.beats[this.beatIdx].time + this.clickOffset < horizon) {
       const b = this.beats[this.beatIdx++]
