@@ -86,7 +86,7 @@
 
 เวลาที่คาดหวังต่อเพลง 4 นาที (ประมาณการบนสเปกที่ให้มา ต้องวัดจริงอีกครั้ง):
 - ดาวน์โหลด + แปลงไฟล์: ~10–30 วินาที (ขึ้นกับเน็ต)
-- วิเคราะห์ทั้งหมด (ครั้งแรก): ~1.5–3 นาที
+- วิเคราะห์ทั้งหมด (ครั้งแรก): ~1.5–3 นาที (Phase 0 วัดจริง: separation + f0 + โน้ต + beat ≈ 1 นาที; ถ้าเปิด karaoke + de-reverb เพิ่ม ≈ +3 นาที ดูตารางหัวข้อ 18)
 - เปิดโปรเจกต์เดิม (จาก cache): < 2 วินาที
 - Generate Tab / เปลี่ยน Block / เปลี่ยนคีย์: < 0.5 วินาที (real-time)
 
@@ -657,15 +657,22 @@ Analyze: "ชื่อเพลง"                            เวลาท�
 - (Phase หลัง) export RMVPE/CREPE เป็น ONNX → TensorRT FP16 เพื่อเร็วขึ้นอีก
 - `torch.compile` สำหรับโมเดลที่ใช้บ่อย (ทดสอบก่อน บน Windows อาจต้องใช้ WSL2)
 
-**VRAM Budget (ประมาณการ — ต้องวัดจริง)**
-| ขั้น | โมเดล | VRAM โดยประมาณ |
-|---|---|---|
-| Separation | Mel-Band RoFormer (bf16, chunk 8s) | 3–6 GB |
-| Karaoke / De-reverb | RoFormer/MDX | 2–4 GB |
-| f0 | RMVPE + torchcrepe | 1–2 GB |
-| Notes | SOME | ~1 GB |
-| Lyrics | faster-whisper large-v3 int8 | 3–4 GB |
-| Beat | Beat This! | < 1 GB |
+**VRAM Budget (ประมาณการ + ผลวัดจริงจาก Phase 0)**
+วัดบน RTX 4060 Laptop 8GB เพลงยาว 290 วินาที (ส่วนเพิ่มของ VRAM เหนือ baseline; รันทีละโมเดล)
+| ขั้น | โมเดล | VRAM ประมาณการ | VRAM วัดจริง | เวลาวัดจริง (290 s) |
+|---|---|---|---|---|
+| Separation | Mel-Band RoFormer (`vocals_mel_band_roformer`) | 3–6 GB | ≈ 3.8 GB | 34 s |
+| Karaoke | Mel-Band RoFormer Karaoke (aufr33/viperx) | 2–4 GB | ≈ 3.3 GB | 118 s |
+| De-reverb | Mel-Band RoFormer De-Reverb (anvuew) | 2–4 GB | ≈ 3.3 GB | 67 s |
+| f0 | RMVPE | 1–2 GB | ≈ 3.5 GB* | 1.9 s |
+| f0 | torchcrepe full | 1–2 GB | ≈ 1.8 GB | 13.4 s |
+| Notes | SOME | ~1 GB | ≈ 1.2 GB | 9.7 s (รวมโหลดโมเดล) |
+| Chord | BTC | — | ยังไม่ได้วัด | ≈ 7 s (รวม CQT บน CPU) |
+| Beat | Beat This! | < 1 GB | ≈ 0.5 GB | 1.3 s |
+| Lyrics | faster-whisper large-v3 int8 | 3–4 GB | ยังไม่ได้วัด | — |
+
+\* RMVPE อาจรวม cache ของ allocator ยังไม่ได้จูน — รายละเอียดและข้อสังเกตใน `.claude/DECISIONS.md`
+ข้อสรุป: peak ต่อโมเดลต่ำกว่า 5 GB (รวม baseline ของระบบ) → รันทีละโมเดลบน 8 GB ได้; ขั้น karaoke + de-reverb ช้าที่สุด (รวม ≈ 3 นาที/เพลง) ควรเป็นตัวเลือกที่ผู้ใช้เปิดเมื่อเพลงมีเสียงประสาน
 
 ### 18.3 กลยุทธ์ CPU (ใช้ทุก core ขณะ GPU ทำงาน)
 - **ProcessPoolExecutor** (ไม่ใช่ thread เพราะ GIL) สำหรับ: Beat This!/allin1 (เวอร์ชัน CPU ได้ถ้า GPU ไม่ว่าง), essentia key, chord post-processing, ffmpeg, การทำ waveform peaks

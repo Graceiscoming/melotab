@@ -107,3 +107,20 @@
 - ผล majmin: 175 ช่วง, median 1.76 s, **สั้นกว่า 1 s = 53 ช่วง (flicker)**; เวลาส่วนใหญ่: D 22%, A 16%, F♯m 15%, G 14%, Em 13%, Bm 12%, N 3% → ชุดคอร์ด **D–A–F♯m–G–Em–Bm เป็น diatonic ของ D major ครบ** สอดคล้องกับโน้ตเมโลดี้ของ song02 (D4/F♯4/E4/A4 ที่พบบ่อย) → น่าเชื่อว่าเพลงอยู่คีย์ D major (ยังไม่ได้วิเคราะห์ key จริง และยังไม่ได้ฟังตรวจคอร์ด)
 - ผล large_voca: 199 ช่วง, สั้นกว่า 1 s = 74 ช่วง; ให้คอร์ดละเอียดขึ้น (m7, sus4, maj7, 7) เช่น Em7 14%, F♯m7 14%, Bm7 11%, Asus4 7% — ละเอียดกว่าแต่ flicker มากกว่า
 - ข้อสรุปเบื้องต้น: BTC ใช้ได้ แต่ **ต้องทำ beat-synchronous smoothing** (บังคับเปลี่ยนคอร์ดตรง beat/downbeat จาก Beat This!) และ key-aware prior ตาม plan.md หัวข้อ 6 ขั้น [5] เพื่อลด flicker; ยังไม่ได้ทดสอบ slash chord (ต้องใช้ bass stem แยก); ความถูกต้องของคอร์ดยังไม่ได้ตรวจ (ต้องให้ผู้ใช้ที่รู้คอร์ดเพลงนี้เทียบ)
+
+## 2026-10-03 — Spike Karaoke (lead/backing) + De-reverb (song02) — **แก้ปัญหา octave ของ SOME ได้**
+- โมเดล (ผ่าน audio-separator): karaoke = `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` (รันบน vocal stem; ให้ vocals=lead, instrumental=backing), de-reverb = `dereverb_mel_band_roformer_anvuew_sdr_19.1729.ckpt` (รันบน lead; ให้ noreverb + reverb) — ตัวเลือกอื่นที่ list ได้ ยังไม่ได้ลอง: karaoke gabox/becruily/anvuew/frazer, UVR-DeEcho-DeReverb, BS-Roformer-De-Reverb
+- ความเร็ว/VRAM บน 290 s (โมเดลโหลดแล้วครั้งแรกรวมดาวน์โหลด 72–86 s): **karaoke 117.6 s** (VRAM +3.3 GB), **de-reverb 66.7 s** (+3.3 GB) → ช้ากว่า separation หลัก (34 s) มาก; รวม 3 ชั้น ≈ 220 s ต่อเพลง 4:50 → plan.md หัวข้อ 2 (วิเคราะห์ทั้งหมด 1.5–3 นาที) ต้องปรับ หรือทำ karaoke/de-reverb เป็นตัวเลือก/ทำเฉพาะช่วงที่จำเป็น
+- พลังงานเสียง (RMS) เทียบ vocal stem เดิม: lead ≈ 91%, lead+dry ≈ 89% (ตัดไปราว 10% ซึ่งน่าจะเป็นเสียงประสาน/reverb)
+- **ผล SOME เทียบ crepe (ต่อ variant ของเสียงร้อง, ทั้งเพลง):**
+  | variant | โน้ต | mean|d| (st) | ±1 st | ต่าง octave |
+  |---|---|---|---|---|
+  | vocal stem เดิม | 807 | 1.67 | 82% | **63** |
+  | + karaoke (lead) | 769 | 0.22 | 95% | **1** |
+  | + karaoke + de-reverb | 730 | 0.18 | **97%** | **0** |
+  - ช่วง 67.5–71 s: เดิม SOME ให้ A3/B3/F♯3 (สลับกับ F♯4/B4) → หลัง karaoke ให้ A4/B4/C♯5 ตรงกับ f0 ของ crepe/RMVPE; ช่วงเสียงโน้ตหดจาก G2–F♯5 เหลือ A3–F♯5
+  - **ข้อสรุป: "octave error" ก่อนหน้าไม่ได้มาจาก f0 ผิดอย่างเดียว แต่มาจากเสียงประสาน/เสียงต่ำที่ปนอยู่ใน vocal stem ทำให้ SOME จับเสียงอื่นแทน lead** — karaoke model แก้ได้เกือบหมด (ยืนยันกลยุทธ์ใน plan.md หัวข้อ 7)
+  - โน้ตลดลง 807 → 769 → 730 (ไม่มีโน้ตสั้นเกิน 104 ms แล้ว จาก 34 ms) และ de-reverb ลดโน้ตซ้ำจากหาง reverb; ยังไม่ได้ฟังตรวจว่าโน้ตที่หายไปเป็นโน้ตจริงหรือไม่ (ข้อควรระวัง: ตัดมากเกินไปอาจทำให้เสียโน้ตจริง)
+  - ข้อควรระวัง: เกณฑ์วัดคือ "SOME สอดคล้องกับ f0" (ไม่ใช่ ground truth) และ f0 ก็คำนวณจากเสียง variant เดียวกัน; ต้องให้ผู้ใช้ฟัง `testdata/out_karaoke/cmp_dry.wav` เทียบ
+- ไฟล์ทดสอบ: `testdata/out_karaoke/` (lead.flac, some_*.mid, cmp_plain/karaoke/dry.wav) และ `testdata/out_dereverb/` (lead_dry.flac)
+- Pipeline ที่แนะนำสำหรับ Phase 1–2: mix → vocal (Mel-Band RoFormer) → lead (karaoke) → dry (de-reverb, ตัวเลือก) → f0 + SOME; เก็บ stem ทุกชั้นใน cache เพื่อรันขั้นหลังใหม่ได้
