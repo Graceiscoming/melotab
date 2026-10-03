@@ -92,3 +92,29 @@ table.opts th, table.opts td { padding: 4px 8px; text-align: left; border-bottom
 table.opts tr.cur { background: #16253a; }
 .tabpanel .small label, .tabpanel .row label { flex-direction: row; align-items: center; gap: 4px; }
 .tabpanel select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; width: 100%; }
+
+.sheetwrap { flex: 1; min-height: 0; overflow: auto; padding: 10px 20px 40px; background: var(--bg); position: relative; }
+.sheettools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.sheettools label { display: inline-flex; align-items: center; gap: 6px; }
+.sheettools input.num, .panelbox input.num { width: 56px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+.songpanels { margin-bottom: 10px; }
+.songpanels button.on { background: #1d3a5c; border-color: var(--accent); }
+.panelbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-top: 8px; max-width: 760px; display: flex; flex-direction: column; gap: 8px; }
+.panelbox textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; resize: vertical; }
+.panelbox input:not([type]), .panelbox input[type=text] { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+.sheet { max-width: 980px; margin: 0 auto; line-height: 1.2; }
+.sheetsec h3 { margin: 18px 0 6px; font-size: .8em; letter-spacing: .04em; color: #9fb3d9; text-transform: uppercase; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+.sheetrow { padding: 3px 8px; border-radius: 6px; cursor: pointer; border-left: 3px solid transparent; }
+.sheetrow:hover { background: #151922; }
+.sheetrow.on { background: #16253a; border-left-color: var(--accent); }
+.sheetrow .lyric { white-space: pre-wrap; }
+.slot { display: inline-flex; flex-direction: column; vertical-align: bottom; }
+.slot .chords { min-height: 1.35em; color: #ffd666; font-weight: 700; white-space: nowrap; }
+.slot .word { white-space: pre; }
+.slot[data-active] .word { color: #fff; background: #1d3a5c; border-radius: 3px; }
+.chordtag { cursor: pointer; margin-right: .5em; }
+.chordtag:hover { text-decoration: underline; }
+.chordedit { background: var(--bg); color: #ffd666; border: 1px solid var(--accent); border-radius: 4px; font: inherit; padding: 0 3px; }
+.sheetrow.instr .instr { color: #ffd666; font-weight: 700; }
+.popover { position: fixed; z-index: 30; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; box-shadow: 0 8px 28px #000a; text-align: center; }
+.diagram.none { padding: 10px; color: var(--muted); font-size: 12px; }

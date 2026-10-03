@@ -34,7 +34,7 @@ def _beat_positions(notes: list[dict], beats: list[dict]) -> None:
 
 
 def build_song(*, source: dict, notes: list[dict], rhythm: dict, key: dict | None,
-               f0_ref: str | None, meta: dict, tuning_offset_cents: float = 0.0) -> dict:
+               f0_ref: str | None, meta: dict, tuning_offset_cents: float = 0.0, extra: dict | None = None) -> dict:
     _beat_positions(notes, rhythm.get("beats", []))
     return {
         "version": 1,
@@ -48,6 +48,7 @@ def build_song(*, source: dict, notes: list[dict], rhythm: dict, key: dict | Non
         "notes": notes,
         "f0_ref": f0_ref,
         "meta": meta,
+        **(extra or {}),
     }
 
 

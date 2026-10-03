@@ -19,7 +19,7 @@ interface View {
   pxPerSec: number
   labels: boolean
   snap: boolean
-  mode: 'roll' | 'tab'
+  mode: 'roll' | 'tab' | 'sheet'
   heatmap: boolean
 }
 
@@ -72,6 +72,7 @@ interface State {
   tabVersion: number // เพิ่มทุกครั้งที่ได้ผลแทปใหม่จาก engine (ให้เทสต์/UI รู้ว่าผลล่าสุดมาถึงแล้ว)
 
   editState: (fn: (s: Snapshot) => Snapshot | null, select?: string | null) => void
+  patchSong: (fn: (song: Song) => Song) => void // แก้ข้อมูลระดับเพลง (คอร์ด/ท่อน/เนื้อร้อง) ไม่ผ่านระบบ undo แต่มี autosave + เวอร์ชันก่อนหน้า
   editNotes: (fn: (notes: Snapshot['notes']) => Snapshot['notes'], select?: string | null) => void
   undo: () => void
   redo: () => void
@@ -145,6 +146,12 @@ export const useStore = create<State>((set, get) => ({
     })
     scheduleSave(get)
     scheduleRegen(get)
+  },
+  patchSong: (fn) => {
+    const song = get().song
+    if (!song) return
+    set({ song: fn(song), saveState: 'dirty' })
+    scheduleSave(get)
   },
   editNotes: (fn, select) => get().editState((s) => ({ ...s, notes: fn(s.notes) }), select),
   undo: () => {

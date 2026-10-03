@@ -25,7 +25,26 @@ export interface KeyInfo {
   alternatives: { tonic: string; mode: string; score: number }[]
 }
 
+export interface Chord {
+  start_beat: number; end_beat: number; start: number; end: number
+  symbol: string              // เช่น "Bm7", "C/E" ("N" = ไม่มีคอร์ด)
+  root: number | null         // 0..11 (C = 0)
+  quality: string | null
+  bass: string | null
+  confidence: number | null   // BTC ไม่ให้ค่านี้ → null เสมอ
+  edited?: boolean
+}
+export interface Section { id: string; label: string; start_bar: number; end_bar: number; start: number; end: number; auto: boolean }
+export interface KeyChange { time: number; bar: number; tonic: string; mode: string; score: number }
+export interface LyricWord { text: string; start: number; end: number; note_ids?: string[] }
+export interface LyricLine { id: string; start: number; end: number; text: string; words: LyricWord[] }
+export interface Lyrics { language: string | null; source: 'asr' | 'pasted'; model?: string | null; text?: string | null; aligned_with_asr?: boolean; lines: LyricLine[] }
+
 export interface Song {
+  chords?: Chord[]
+  sections?: Section[]
+  key_changes?: KeyChange[]
+  lyrics?: Lyrics
   version: number
   tuning_offset_cents?: number
   source: { title: string; duration: number; audio_hash: string; path?: string }

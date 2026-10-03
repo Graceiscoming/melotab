@@ -46,6 +46,9 @@ export const api = {
     post(`/projects/${encodeURIComponent(id)}/tab/blocks`, body).then(j<BlocksResponse>),
   suggestKeys: (id: string, settings: Partial<TabSettings>, notes: Note[]) =>
     post(`/projects/${encodeURIComponent(id)}/keys/suggest`, { settings, notes }).then(j<KeySuggestion>),
+  lyrics: (id: string, opts: { model_size: string; language: string | null; text: string | null; force_asr: boolean }) =>
+    post(`/projects/${encodeURIComponent(id)}/lyrics`, opts).then(j<JobInfo>),
+  lyricsAlign: (id: string, text: string) => post(`/projects/${encodeURIComponent(id)}/lyrics/align`, { text }).then(j<unknown>),
   audioUrl: (id: string, stem: string) => `${API}/audio/${encodeURIComponent(id)}/${stem}`,
 }
 

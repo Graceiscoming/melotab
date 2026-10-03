@@ -4,11 +4,17 @@ import { getTransport } from '../../audio/instance'
 import { setPitch, setTimes, addNote } from '../../store/edits'
 import { useStore } from '../../store/store'
 import { snapTime } from '../../theory/rhythm'
+import { preferFlats, spellChord } from '../../theory/chords'
 import { BLACK, noteName, scalePcs } from '../../theory/notes'
 import type { Note } from '../../types'
 
 const KEY_W = 64
 const RULER_H = 22
+const SEC_H = 16 // แถบท่อน
+const CH_H = 20 // แถบคอร์ด
+const LY_H = 18 // แถบเนื้อร้อง
+const STRIP_H = SEC_H + CH_H + LY_H
+const TOP = RULER_H + STRIP_H // ขอบบนของพื้นที่โน้ต
 const ROW_H = 16
 const COLORS = {
   bg: 0x14161b, laneWhite: 0x1b1e25, laneBlack: 0x16181e, laneKey: 0x20283a, grid: 0x2a2f3a, bar: 0x434a5c,
@@ -71,11 +77,12 @@ export function PianoRoll() {
       const vp: Viewport = { scrollT: 0, scrollY: 0, minMidi: 48, maxMidi: 84, pxPerSec: 90 }
       let lastScale = 0
       let ghost = new Graphics()
+      let strips: Container | null = null
       type Drag = { mode: DragMode; id: string; note: Note; x0: number; y0: number; moved: boolean; midi: number; start: number; end: number }
       let drag: Drag | null = null
 
       const timeToX = (t: number) => KEY_W + (t - vp.scrollT) * vp.pxPerSec
-      const rowY = (midi: number) => RULER_H + (vp.maxMidi - midi) * ROW_H - vp.scrollY
+      const rowY = (midi: number) => TOP + (vp.maxMidi - midi) * ROW_H - vp.scrollY
 
       /** สร้างเนื้อหาใหม่ทั้งหมด (เมื่อ song/zoom/ตัวเลือกเปลี่ยน) */
       const rebuild = () => {
@@ -134,6 +141,35 @@ export function PianoRoll() {
         }
         ghost = new Graphics()
         body.addChild(notes, labels, ghost)
+
+        // แถบท่อน / คอร์ด / เนื้อร้อง (เลื่อนตามเวลา แต่ไม่เลื่อนตามแนวตั้ง)
+        if (strips) { worldX.removeChild(strips); strips.destroy({ children: true }) }
+        strips = new Container()
+        strips.y = RULER_H
+        const sg = new Graphics()
+        sg.rect(0, 0, W, STRIP_H).fill(0x101319)
+        const flats = preferFlats(song.key)
+        const bt = (text: string, x: number, y: number, fill: number, size = 10) => {
+          const t = new BitmapText({ text, style: { fontFamily: 'Arial', fontSize: size, fill } })
+          t.x = x
+          t.y = y
+          strips!.addChild(t)
+        }
+        ;(song.sections ?? []).forEach((sec, i) => {
+          const x0 = sec.start * vp.pxPerSec
+          sg.rect(x0, 0, Math.max(1, (sec.end - sec.start) * vp.pxPerSec - 1), SEC_H - 1).fill({ color: i % 2 ? 0x2a3550 : 0x233049, alpha: sec.auto ? 0.8 : 1 })
+        })
+        strips.addChild(sg)
+        ;(song.sections ?? []).forEach((sec) => bt(sec.label + (sec.auto ? '' : ' ✎'), sec.start * vp.pxPerSec + 4, 2, 0xb9c6e4, 10))
+        ;(song.key_changes ?? []).forEach((k) => bt(`▶ ${k.tonic} ${k.mode}`, k.time * vp.pxPerSec, 2, 0xffa94d, 10))
+        ;(song.chords ?? []).forEach((c) => {
+          if (c.symbol === 'N') return
+          bt(spellChord(c.symbol, flats), c.start * vp.pxPerSec + 2, SEC_H + 3, 0xffd666, 12)
+        })
+        if (view.labels) {
+          for (const ln of song.lyrics?.lines ?? []) for (const w of ln.words) bt(w.text, w.start * vp.pxPerSec + 1, SEC_H + CH_H + 3, 0xcfd6e6, 11)
+        }
+        worldX.addChild(strips)
         drawFixed()
       }
 
@@ -147,7 +183,7 @@ export function PianoRoll() {
         kg.rect(0, 0, KEY_W, a.screen.height).fill(COLORS.ruler)
         for (let m = vp.minMidi; m <= vp.maxMidi; m++) {
           const y = rowY(m)
-          if (y < RULER_H - ROW_H || y > a.screen.height) continue
+          if (y < TOP - ROW_H || y > a.screen.height) continue
           const pc = ((m % 12) + 12) % 12
           kg.rect(0, y, KEY_W - 1, ROW_H - 1).fill(BLACK.has(pc) ? COLORS.keyBlack : COLORS.key)
           if (pc === 0) {
@@ -182,7 +218,7 @@ export function PianoRoll() {
         const viewW = a.screen.width - KEY_W
         if (view.follow && tr.playing) vp.scrollT = Math.max(0, t - (viewW * 0.3) / vp.pxPerSec)
         worldX.x = KEY_W - vp.scrollT * vp.pxPerSec
-        body.y = RULER_H - vp.scrollY
+        body.y = TOP - vp.scrollY
         const sig = vp.scrollT * 1000 + vp.scrollY + view.pxPerSec * 1e6
         if (sig !== lastScale) { lastScale = sig; drawFixed() }
         const px = timeToX(t)
@@ -196,7 +232,7 @@ export function PianoRoll() {
       const clampScroll = () => {
         const dur = stateRef.current.song?.source.duration ?? 0
         vp.scrollT = Math.max(-2, Math.min(vp.scrollT, dur))
-        const contentH = (vp.maxMidi - vp.minMidi + 1) * ROW_H + RULER_H
+        const contentH = (vp.maxMidi - vp.minMidi + 1) * ROW_H + TOP
         vp.scrollY = Math.max(0, Math.min(vp.scrollY, Math.max(0, contentH - a.screen.height)))
       }
 
@@ -223,7 +259,7 @@ export function PianoRoll() {
         const rect = canvas.getBoundingClientRect()
         const x = e.clientX - rect.left
         const y = e.clientY - rect.top
-        return { x, y, t: vp.scrollT + (x - KEY_W) / vp.pxPerSec, midi: vp.maxMidi - Math.floor((y - RULER_H + vp.scrollY) / ROW_H) }
+        return { x, y, t: vp.scrollT + (x - KEY_W) / vp.pxPerSec, midi: vp.maxMidi - Math.floor((y - TOP + vp.scrollY) / ROW_H) }
       }
       const drawGhost = () => {
         ghost.clear()
@@ -237,11 +273,11 @@ export function PianoRoll() {
         const { x, y, t, midi } = posOf(e)
         if (x < KEY_W) {
           // คลิกคีย์เปียโน = ฟังโน้ตนั้น
-          if (y > RULER_H) tr.audition(vp.maxMidi - Math.floor((y - RULER_H + vp.scrollY) / ROW_H))
+          if (y > TOP) tr.audition(vp.maxMidi - Math.floor((y - TOP + vp.scrollY) / ROW_H))
           return
         }
         const { song } = stateRef.current
-        if (y > RULER_H && song) {
+        if (y > TOP && song) {
           const n = hitNote(song.notes, t, midi, 4 / vp.pxPerSec)
           if (n) {
             useStore.getState().selectNote(n.id)
@@ -290,7 +326,7 @@ export function PianoRoll() {
       const onDbl = (e: MouseEvent) => {
         const { x, y, t, midi } = posOf(e)
         const { song, view } = stateRef.current
-        if (x < KEY_W || y <= RULER_H || !song || hitNote(song.notes, t, midi, 4 / vp.pxPerSec)) return
+        if (x < KEY_W || y <= TOP || !song || hitNote(song.notes, t, midi, 4 / vp.pxPerSec)) return
         const start = view.snap ? snapTime(song.beats, t) : t
         const dur = song.beats.length > 1 ? snapTime(song.beats, start + (song.beats[1].time - song.beats[0].time)) - start : 0.3
         const r = addNote(song.notes, start, midi, Math.max(0.1, dur), song.key)
@@ -302,7 +338,7 @@ export function PianoRoll() {
         const { x, y, t, midi } = posOf(e)
         const { song } = stateRef.current
         let cur = 'default'
-        if (x >= KEY_W && y > RULER_H && song) {
+        if (x >= KEY_W && y > TOP && song) {
           const n = hitNote(song.notes, t, midi, 4 / vp.pxPerSec)
           if (n) {
             const px0 = (n.start - vp.scrollT) * vp.pxPerSec + KEY_W

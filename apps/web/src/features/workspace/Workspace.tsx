@@ -5,6 +5,7 @@ import type { TrackName } from '../../audio/transport'
 import { mergeNext, movePitch, needsReview, nextReview, remove, splitAt } from '../../store/edits'
 import { useStore } from '../../store/store'
 import { PianoRoll } from '../pianoroll/PianoRoll'
+import { ChordSheet } from '../sheet/ChordSheet'
 import { TabPanel } from '../tab/TabPanel'
 import { TabView } from '../tab/TabView'
 
@@ -23,6 +24,10 @@ export function Workspace() {
   const [click, setClick] = useState(false)
   const [split, setSplit] = useState(false)
   const [ready, setReady] = useState(false)
+  const [rate, setRateUi] = useState(1)
+  const [countIn, setCountIn] = useState(0)
+  const [stretching, setStretching] = useState(false)
+  const [loopAB, setLoopAB] = useState<{ a: number | null; b: number | null }>({ a: null, b: null })
   const [panel, setPanel] = useState<'' | 'sens' | 'history'>('')
   const timeEl = useRef<HTMLSpanElement>(null)
 
@@ -50,6 +55,9 @@ export function Workspace() {
   useEffect(() => { if (view.mode === 'tab' && !tab && song) void useStore.getState().regenerateTab() }, [view.mode]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { tr.clickOn = click }, [click, tr])
   useEffect(() => { tr.setSplit(split) }, [split, tr])
+  useEffect(() => { tr.countIn = countIn }, [countIn, tr])
+  useEffect(() => { tr.loop = loopAB.a !== null && loopAB.b !== null && loopAB.b > loopAB.a ? { a: loopAB.a, b: loopAB.b } : null }, [loopAB, tr])
+  useEffect(() => { setRateUi(1); setLoopAB({ a: null, b: null }); tr.rate = 1 }, [currentId, tr])
 
   useEffect(() => {
     let raf = 0
@@ -63,7 +71,12 @@ export function Workspace() {
 
   function toggle() {
     if (!ready) return
-    if (tr.playing) { tr.pause(); setPlaying(false) } else { void tr.play(); setPlaying(true) }
+    if (tr.playing) { tr.pause(); setPlaying(false) } else { void tr.play(tr.loop && (tr.getTime() < tr.loop.a || tr.getTime() >= tr.loop.b) ? tr.loop.a : undefined, true); setPlaying(true) }
+  }
+
+  async function changeRate(r: number) {
+    setRateUi(r)
+    try { await tr.setRate(r, setStretching) } catch (e) { setError(`ปรับความเร็วไม่สำเร็จ: ${e instanceof Error ? e.message : e}`) }
   }
 
   function jumpToReview() {
@@ -91,7 +104,7 @@ export function Workspace() {
       if (mod && e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) st.redo(); else st.undo(); return }
       if (mod && e.code === 'KeyY') { e.preventDefault(); st.redo(); return }
       if (e.code === 'KeyN') { jumpToReview(); return }
-      if (st.view.mode === 'tab') return   // ปุ่มที่เหลือเป็นของตัวแก้ไขแทป (TabView)
+      if (st.view.mode !== 'roll') return   // ปุ่มที่เหลือเป็นของตัวแก้ไขแทป (TabView) / Chord Sheet
       if (!id) return
       if (e.code === 'Delete' || e.code === 'Backspace') { e.preventDefault(); st.editNotes((ns) => remove(ns, id), null) }
       else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
@@ -150,9 +163,10 @@ export function Workspace() {
       <div className="modetabs">
         <button className={view.mode === 'roll' ? 'on' : ''} onClick={() => setView({ mode: 'roll' })} data-testid="mode-roll">Piano Roll</button>
         <button className={view.mode === 'tab' ? 'on' : ''} onClick={() => setView({ mode: 'tab' })} data-testid="mode-tab">Guitar Tab</button>
+        <button className={view.mode === 'sheet' ? 'on' : ''} onClick={() => setView({ mode: 'sheet' })} data-testid="mode-sheet">Chord Sheet</button>
         {view.mode === 'tab' && <label className="heat"><input type="checkbox" checked={view.heatmap} onChange={(e) => setView({ heatmap: e.target.checked })} data-testid="heatmap" /> heatmap ความยาก (เขียว/เหลือง/แดง)</label>}
       </div>
-      {view.mode === 'roll' ? <PianoRoll /> : <div className="tabarea"><TabView /><TabPanel /></div>}
+      {view.mode === 'roll' ? <PianoRoll /> : view.mode === 'sheet' ? <ChordSheet /> : <div className="tabarea"><TabView /><TabPanel /></div>}
 
       <div className="transport">
         <button className="play" onClick={toggle} disabled={!ready} data-testid="play">{playing ? '⏸ หยุด' : '▶ เล่น'}</button>
@@ -162,6 +176,15 @@ export function Workspace() {
         <label><input type="checkbox" checked={synth} onChange={(e) => setSynth(e.target.checked)} /> เสียงโน้ต (synth)</label>
         <label title="เพลงออกหูซ้าย / synth ออกหูขวา เพื่อฟังเทียบว่าโน้ตตรงไหม"><input type="checkbox" checked={split} onChange={(e) => setSplit(e.target.checked)} /> ฟังเทียบ ซ้าย/ขวา</label>
         <label><input type="checkbox" checked={click} onChange={(e) => setClick(e.target.checked)} /> Metronome</label>
+        <label title="นับจังหวะก่อนเริ่มเล่น">นับ <select value={countIn} onChange={(e) => setCountIn(+e.target.value)} data-testid="countin">
+          {[0, 1, 2, 4].map((n) => <option key={n} value={n}>{n === 0 ? 'ปิด' : `${n} จังหวะ`}</option>)}</select></label>
+        <label title="ช้าลงโดยไม่เพี้ยนเสียง (ครั้งแรกต้องประมวลผลสักครู่)">ความเร็ว <select value={rate} onChange={(e) => void changeRate(+e.target.value)} disabled={!ready || stretching} data-testid="rate">
+          {[0.5, 0.6, 0.75, 0.9, 1, 1.1].map((r) => <option key={r} value={r}>{Math.round(r * 100)}%</option>)}</select>{stretching && <span className="muted"> … ประมวลผล</span>}</label>
+        <span className="loopctl" title="วนซ้ำช่วง A–B (ซ้อมท่อนที่ยาก)">
+          <button onClick={() => setLoopAB((l) => ({ ...l, a: tr.getTime() }))} data-testid="loop-a">A{loopAB.a !== null ? ` ${loopAB.a.toFixed(1)}` : ''}</button>
+          <button onClick={() => setLoopAB((l) => ({ ...l, b: tr.getTime() }))} data-testid="loop-b">B{loopAB.b !== null ? ` ${loopAB.b.toFixed(1)}` : ''}</button>
+          {(loopAB.a !== null || loopAB.b !== null) && <button onClick={() => setLoopAB({ a: null, b: null })}>ล้าง loop</button>}
+        </span>
         <span className="spacer" />
         <label><input type="checkbox" checked={view.snap} onChange={(e) => setView({ snap: e.target.checked })} /> snap ตาม beat</label>
         <label><input type="checkbox" checked={view.follow} onChange={(e) => setView({ follow: e.target.checked })} /> ตามเพลง</label>

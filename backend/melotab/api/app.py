@@ -20,6 +20,7 @@ from ..analysis import run_analysis
 from ..audio import to_preview_mp3
 from ..cache import StageCache
 from ..jobs.manager import Job, JobManager
+from ..lyrics_task import realign, run_lyrics
 from ..retranscribe import retranscribe
 from ..store import ProjectStore
 from .. import tab as tabmod
@@ -37,6 +38,17 @@ class AnalyzeOptions(BaseModel):
     fix_octave: bool = True
     min_dur_ms: float = 0.0
     merge_gap_ms: float = 0.0
+
+
+class LyricsOptions(BaseModel):
+    text: str | None = None            # เนื้อที่วางเอง (ทีละบรรทัด) — ไม่ใส่ = ใช้ผล ASR
+    model_size: str = "large-v3"
+    language: str | None = None        # None = ให้โมเดลตรวจเอง
+    force_asr: bool = False
+
+
+class RealignRequest(BaseModel):
+    text: str
 
 
 class RetranscribeOptions(BaseModel):
@@ -86,6 +98,10 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
     hub = _Hub()
 
     def default_runner(job: Job, on_event, cancelled) -> dict:
+        if job.params.get("task") == "lyrics":
+            p = {k: job.params[k] for k in ("text", "model_size", "language", "force_asr") if k in job.params}
+            return run_lyrics(store.path(job.project_id), lambda song: store.save_song(job.project_id, song),
+                              on_event=on_event, cancelled=cancelled, **p)
         return run_analysis(store.source_path(job.project_id), store.path(job.project_id),
                             karaoke=job.params.get("karaoke", False), dereverb=job.params.get("dereverb", False),
                             fix_octave=job.params.get("fix_octave", True), min_dur_ms=job.params.get("min_dur_ms", 0.0),
@@ -167,6 +183,30 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
         except (FileNotFoundError, ValueError):
             raise HTTPException(404, "ไม่พบโปรเจกต์")
         return {"ok": True, "notes": len(song["notes"])}
+
+    @app.post("/projects/{pid}/lyrics", status_code=202)
+    def lyrics_job(pid: str, opts: LyricsOptions | None = None) -> dict:
+        """ถอดเนื้อร้องด้วย ASR (และจัดเวลาเนื้อที่วางเอง) เป็นงานในคิว — ต้องวิเคราะห์เพลงก่อน"""
+        try:
+            store.meta(pid)
+        except (FileNotFoundError, ValueError):
+            raise HTTPException(404, "ไม่พบโปรเจกต์")
+        if store.song(pid) is None:
+            raise HTTPException(409, "ต้องวิเคราะห์เพลงก่อนจึงจะถอดเนื้อร้องได้")
+        return manager.submit(pid, {"task": "lyrics", **(opts or LyricsOptions()).model_dump()}).public()
+
+    @app.post("/projects/{pid}/lyrics/align")
+    def lyrics_align(pid: str, body: RealignRequest) -> dict:
+        """จัดเวลาเนื้อที่วางใหม่ทันทีจากผล ASR ที่เก็บไว้ (ไม่รันโมเดล)"""
+        if not body.text.strip():
+            raise HTTPException(422, "เนื้อว่างเปล่า")
+        try:
+            store.meta(pid)
+            if store.song(pid) is None:
+                raise HTTPException(409, "ต้องวิเคราะห์เพลงก่อน")
+            return realign(store.path(pid), lambda song: store.save_song(pid, song), body.text)["lyrics"]
+        except (FileNotFoundError, ValueError):
+            raise HTTPException(404, "ไม่พบโปรเจกต์")
 
     @app.post("/projects/{pid}/retranscribe")
     def retranscribe_project(pid: str, opts: RetranscribeOptions) -> dict:

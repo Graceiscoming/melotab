@@ -15,15 +15,17 @@ import numpy as np
 from . import audio
 from .cache import StageCache, make_key
 from .config import SEP_DEREVERB_MODEL, SEP_KARAOKE_MODEL, SEP_VOCAL_MODEL, SOME_CKPT
+from .pipeline import chords as chords_stage
 from .pipeline import f0 as f0_stage
 from .pipeline import key as key_stage
 from .pipeline import notes as notes_stage
 from .pipeline import rhythm as rhythm_stage
 from .pipeline import separation
+from .pipeline import structure as structure_stage
 from .song import build_song, export_midi, save_song
 
 # น้ำหนักเวลาโดยประมาณ (วินาที ต่อเพลง ~4 นาที) จากผลวัด Phase 0 — ใช้คำนวณ % รวมแบบหยาบ
-STAGE_WEIGHT = {"ingest": 1, "separation": 35, "karaoke": 118, "dereverb": 67, "f0": 5, "notes": 4, "rhythm": 2}
+STAGE_WEIGHT = {"ingest": 1, "separation": 35, "karaoke": 118, "dereverb": 67, "f0": 5, "notes": 4, "rhythm": 2, "chords": 8, "structure": 2}
 
 
 class Cancelled(Exception):
@@ -36,7 +38,7 @@ def plan_stages(karaoke: bool, dereverb: bool) -> list[str]:
         s.append("karaoke")
     if dereverb:
         s.append("dereverb")
-    return s + ["f0", "notes", "rhythm"]
+    return s + ["f0", "notes", "rhythm", "chords", "structure"]
 
 
 def run_analysis(src: Path, out: Path, *, karaoke: bool = False, dereverb: bool = False,
@@ -144,10 +146,39 @@ def run_analysis(src: Path, out: Path, *, karaoke: bool = False, dereverb: bool 
     rhythm = cached_json("rhythm", lambda: rhythm_stage.analyze_rhythm(wav), model="beat_this_final0")
 
     key = key_stage.estimate_key(notes)
+
+    # --- chords: BTC (โปรเซสแยก) บน instrumental → smoothing ตาม beat → slash chord จากย่านเบส ---
+    inst = stems_dir / "instrumental.flac"
+    audio_inst = chords_stage.load_audio(inst)
+    beat_times = [b["time"] for b in rhythm["beats"]]
+    raw_chords = cached_json("chords", lambda: [list(r) for r in chords_stage.run_btc(inst)], model="btc_majmin")
+    chords = chords_stage.analyze_chords(inst, beat_times, raw=raw_chords, audio=audio_inst) if beat_times else []
+
+    # --- structure: ห้อง → เปลี่ยนคีย์ + แบ่งท่อน (heuristic) ---
+    t0 = begin("structure")
+    bars = structure_stage.bars_from_beats(rhythm["beats"])
+    bar_t = structure_stage.bar_times(rhythm["beats"], bars) if bars else []
+    key_changes = structure_stage.detect_key_changes(notes, bar_t, key) if bar_t else []
+    sections: list[dict] = []
+    if bar_t and chords:
+        import librosa
+        y, sr = audio_inst
+        rms = librosa.feature.rms(y=y, frame_length=2048, hop_length=512)[0]
+        rt = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=512)
+        energy = np.array([float(rms[(rt >= a) & (rt < b)].mean()) if ((rt >= a) & (rt < b)).any() else 0.0 for a, b in bar_t])
+        feats = structure_stage.bar_features(chords, bar_t, energy)
+        sections = structure_stage.segment_structure(feats, energy)
+        for i, sec in enumerate(sections, 1):
+            sec["id"] = f"s{i}"
+            sec["start"] = round(bar_t[sec["start_bar"] - 1][0], 3)
+            sec["end"] = round(bar_t[min(sec["end_bar"] - 2, len(bar_t) - 1)][1], 3)
+    end("structure", t0, False)
+
     song = build_song(
         source={"type": "file", "path": str(src), "title": src.stem,
                 "duration": round(float(f0["times"][-1]), 1), "audio_hash": sha},
         notes=notes, rhythm=rhythm, key=key, f0_ref="analysis/f0.npz", tuning_offset_cents=tuning,
+        extra={"chords": chords, "sections": sections, "key_changes": key_changes},
         meta={"karaoke": karaoke, "dereverb": dereverb, "melody_source": melody.name, "fix_octave": fix_octave,
               "min_dur_ms": min_dur_ms, "merge_gap_ms": merge_gap_ms,
               "timings_s": timings, "cached_stages": cached_stages},

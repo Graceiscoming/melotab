@@ -26,3 +26,14 @@ def estimate_key(notes: list[dict]) -> dict | None:
     best = cands[0]
     return {"tonic": best[1], "mode": best[2], "score": round(best[0], 3),
             "alternatives": [{"tonic": t, "mode": m, "score": round(s, 3)} for s, t, m in cands[1:4]]}
+
+
+def key_scores(notes: list[dict]) -> dict[tuple[str, str], float]:
+    """สหสัมพันธ์ของฮิสโทแกรมโน้ต (ถ่วงตามความยาว) กับทุกคีย์ (24 คีย์) — ใช้เทียบคีย์ปัจจุบันกับคีย์ที่น่าจะเปลี่ยนไป"""
+    hist = np.zeros(12)
+    for n in notes:
+        hist[n["midi"] % 12] += n["end"] - n["start"]
+    if hist.sum() == 0 or np.ptp(hist) == 0:
+        return {}
+    return {(_NAMES[t], mode): float(np.corrcoef(hist, np.roll(prof, t))[0, 1])
+            for t in range(12) for mode, prof in (("major", _MAJOR), ("minor", _MINOR))}

@@ -194,3 +194,49 @@ def test_tab_endpoints_validate_input(tmp_path, audio_file):
         assert c.post(f"/projects/{pid}/tab/generate", json={"settings": {"capo": 99}}).status_code == 422
         assert c.put(f"/projects/{pid}/tab", json={"x": 1}).status_code == 422
         assert c.put("/projects/nope/tab", json={"events": []}).status_code == 404
+
+
+def _fake_asr(*a, **k):
+    return {"language": "en", "language_probability": 0.9, "segments": [
+        {"start": 1.0, "end": 2.0, "text": "alpha beta", "words": [
+            {"text": "alpha", "start": 1.0, "end": 1.5, "prob": 0.9}, {"text": "beta", "start": 1.5, "end": 2.0, "prob": 0.9}]},
+        {"start": 4.0, "end": 5.0, "text": "gamma delta", "words": [
+            {"text": "gamma", "start": 4.0, "end": 4.5, "prob": 0.9}, {"text": "delta", "start": 4.5, "end": 5.0, "prob": 0.9}]}]}
+
+
+def test_lyrics_job_asr_then_pasted_alignment(tmp_path, audio_file, monkeypatch):
+    from melotab.pipeline import lyrics as L
+    monkeypatch.setattr(L, "transcribe_asr", _fake_asr)
+    app = create_app(store=ProjectStore(tmp_path / "Projects"), cache=StageCache(tmp_path / "cache"), stats_interval=0.05)   # runner จริง
+    with TestClient(app) as c:
+        pid = c.post("/projects", json={"source_path": str(audio_file)}).json()["id"]
+        assert c.post(f"/projects/{pid}/lyrics", json={}).status_code == 409                # ยังไม่ได้วิเคราะห์เพลง
+        notes = [{"id": "n1", "midi": 60, "start": 1.0, "end": 1.6}, {"id": "n2", "midi": 62, "start": 4.1, "end": 4.9}]
+        c.put(f"/projects/{pid}/song", json={"notes": notes, "key": None, "beats": [], "meta": {}})
+        assert c.post(f"/projects/{pid}/lyrics", json={}).json()["status"] in ("queued", "running")   # ไม่มีเสียงร้องในโปรเจกต์ → ล้มอย่างอ่านรู้เรื่อง
+        t0 = time.time()
+        while time.time() - t0 < 5:
+            j = c.get("/jobs").json()[0]
+            if j["status"] in ("error", "done"):
+                break
+            time.sleep(0.05)
+        assert j["status"] == "error" and "เสียงร้อง" in j["error"]
+
+        stem = tmp_path / "Projects" / pid / "audio" / "stems"
+        stem.mkdir(parents=True)
+        (stem / "vocals.flac").write_bytes(b"fLaC")
+        job = c.post(f"/projects/{pid}/lyrics", json={"model_size": "small"}).json()
+        wait_status(c, job["id"], {"done"})
+        ly = c.get(f"/projects/{pid}").json()["song"]["lyrics"]
+        assert ly["source"] == "asr" and ly["language"] == "en" and [l["text"] for l in ly["lines"]] == ["alpha beta", "gamma delta"]
+        assert ly["lines"][0]["words"][0]["note_ids"] == ["n1"]                             # คำผูกกับโน้ต
+        # ASR ดิบถูกเก็บไว้ → วางเนื้อใหม่แล้วจัดเวลาได้ทันที (ไม่รันโมเดล)
+        r = c.post(f"/projects/{pid}/lyrics/align", json={"text": "alpha beta\ngamma delta"}).json()
+        assert r["source"] == "pasted" and r["aligned_with_asr"] is True                       # จัดเวลาโดยเทียบกับ ASR ที่เก็บไว้
+        song = c.get(f"/projects/{pid}").json()["song"]["lyrics"]
+        assert song["source"] == "pasted" and abs(song["lines"][1]["words"][0]["start"] - 4.0) < 0.05
+        assert c.post(f"/projects/{pid}/lyrics/align", json={"text": "   "}).status_code == 422
+        # ใช้ผล ASR ที่เก็บไว้ซ้ำ (ไม่เรียก ASR อีก)
+        monkeypatch.setattr(L, "transcribe_asr", lambda *a, **k: (_ for _ in ()).throw(AssertionError("ไม่ควรรัน ASR ซ้ำ")))
+        job2 = c.post(f"/projects/{pid}/lyrics", json={"model_size": "small", "text": "alpha beta"}).json()
+        wait_status(c, job2["id"], {"done"})

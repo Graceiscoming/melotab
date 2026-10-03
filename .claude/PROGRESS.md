@@ -1,7 +1,11 @@
 # สถานะโปรเจกต์ MeloTab (เขียนทับทุกครั้งที่จบงาน)
 
-**อัปเดตล่าสุด**: 2026-10-03
-**Phase ปัจจุบัน**: Phase 4 (ทฤษฎีดนตรีครบ + Chord Sheet + Metronome) — Phase 0–3 จบแล้ว
+**อัปเดตล่าสุด**: 2026-10-04
+**Phase ปัจจุบัน**: Phase 5 (เทคนิคกีตาร์ + Export) ยังไม่เริ่ม — Phase 0–4 จบแล้ว
+
+## ทำต่อ (session หน้า)
+- เริ่ม Phase 5: ก่อนเริ่มเช็กโมเดล/ไลบรารีล่าสุด; ornament detection → slide/bend/hammer/pull/vibrato, Export PNG/SVG/PDF/MIDI/MusicXML/GP
+- ค้างจาก Phase 4: ทดสอบคอร์ด/ท่อน/เนื้อกับ ground truth จริง, forced alignment จริง (WhisperX ชน torch), time signature/key change ตรวจกับเพลงยาก
 
 ## ทำเสร็จแล้ว
 - [x] เขียนแผนออกแบบ `plan.md` (25 หัวข้อ + ภาคผนวก)
@@ -44,7 +48,7 @@
 - [x] Phase 1 — MVP หลังบ้าน + หน้าบ้านพื้นฐาน
 - [x] Phase 2 — ความแม่นยำ (สำคัญสุด) (ยังไม่ได้วัด Note F1 กับ ground truth จริง ต้องมี MIDI ที่แกะมือ)
 - [x] Phase 3 — Tab Engine + Editor (น้ำหนักต้นทุน/ความยากยังไม่ปรับกับนักกีตาร์จริง; editor ยังขาด time-nudge/ripple/คลิกขวา/finger)
-- [ ] Phase 4 — ทฤษฎีดนตรีครบ + Chord Sheet + Metronome
+- [x] Phase 4 — ทฤษฎีดนตรีครบ + Chord Sheet + Metronome (คอร์ด/ท่อน/เนื้อยังไม่วัดกับ ground truth; ไม่ใช้ allin1/WhisperX)
 - [ ] Phase 5 — เทคนิคกีตาร์ + Export
 - [ ] Phase 6 — ขัดเกลา & ฟีเจอร์เสริม
 
