@@ -23,7 +23,8 @@
 - [x] Phase 0 — SOME รันได้ (150 โน้ต, สอดคล้อง f0 ±1 semitone 93%) — ผู้ใช้ฟัง compare_some.wav แล้ว ตรงดี; ยังไม่ commit
 - [x] Phase 0 — วัดเพลงเต็ม song02 (4:50): GPU รวม ≈ 57 s, peak VRAM < 5 GB (ดู DECISIONS.md)
 - [ ] Phase 0 — **ปัญหาค้าง**: SOME vs f0 ต่างกัน 1 octave ใน 63/807 โน้ตของ song02 — ต้องฟัง testdata/out2/compare_some.wav ตัดสินว่า SOME หรือ torchcrepe ผิด
-- [ ] Phase 0 — ลอง RMVPE (เทียบ torchcrepe), ROSVOT, BTC, karaoke/de-reverb
+- [x] Phase 0 — RMVPE ลองแล้ว: เร็ว (1.9 s/290 s) ตรงกับ crepe ในโน้ตที่ SOME ต่าง octave 55/63 → SOME น่าจะผิด; ยังไม่ commit
+- [ ] Phase 0 — ลอง ROSVOT, BTC, Beat This! (รันจริง), karaoke/de-reverb
 - [ ] Phase 0 — spike ทดสอบโมเดลทีละตัว: separation, RMVPE, torchcrepe, SOME, Beat This!, essentia, BTC, faster-whisper
 - [ ] Phase 0 — วัดเวลา/VRAM จริง แล้วอัปเดตตารางใน plan.md หัวข้อ 18
 - [ ] Phase 0 — เตรียมชุดเพลงทดสอบ 10–20 เพลงที่แกะมือไว้ (ground truth)

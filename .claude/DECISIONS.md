@@ -79,3 +79,13 @@
   - ช่วงเสียง SOME รวม G2–F♯5 ขณะ f0 (2–98 percentile) A3–E5 → โน้ต G♯2 ฯลฯ น่าสงสัย
   - บทเรียน: เพลง 49 วินาทีแรกไม่เจอปัญหานี้ → ต้องมีชุดทดสอบหลายเพลง และ plan.md หัวข้อ 7 (ensemble f0 + แก้ octave ด้วยบริบท) มีเหตุผลจริง
 - ถ้า SOME เป็นฝ่ายผิด: แนวแก้ = ใช้ f0 ensemble ตัดสิน octave ของโน้ต (แก้โน้ตของ SOME ให้ตรง octave ของ median f0) หรือลอง ROSVOT/HMM ของเราเอง
+
+## 2026-10-03 — Spike RMVPE (เทียบ torchcrepe, song02)
+- ที่มา: น้ำหนัก `rmvpe.zip` จาก https://github.com/yxlllc/RMVPE (release 230917) → `models/RMVPE/model.pt`; ใช้คลาส RMVPE ที่อยู่ใน `third_party/SOME/modules/rmvpe` (ไม่ต้องลงแพ็กเกจเพิ่ม); สคริปต์ `backend/scripts/spike_rmvpe.py` (รันด้วย `.venv-spike`)
+- ความเร็ว/VRAM บน 290 s: โหลด 0.8 s, infer **1.9 s** (เร็วกว่า torchcrepe 13.4 s มาก), VRAM เพิ่ม ≈ 3.5 GB (วัดด้วย NVML อาจรวม cache ของ allocator; ยังไม่ได้จูน)
+- voiced: RMVPE 75% / crepe 79% / ตรงกันทั้งคู่ 70%
+- ในเฟรมที่ voiced ทั้งสองตัว: median ต่าง −0.02 semitone, ต่าง < 0.5 st = 92.9%, ต่าง octave (≥11 st) 1.06% (215 เฟรม) → สองตัวเห็นตรงกันเกือบทั้งหมด
+- **โน้ต 63 ตัวที่ SOME ต่างจาก crepe ≥ 1 octave**: RMVPE ตรงกับ crepe ใน **55 ตัว**, ต่างจากทั้งคู่ 8 ตัว, ตรงกับ SOME 0 ตัว (เช่น 67.9–70 s: SOME=A3/B3/C♯4, crepe=RMVPE=A4/B4/C♯5)
+  - ข้อสรุปเบื้องต้น: **SOME น่าจะพับ octave ลงในช่วงเสียงสูง** เพราะ f0 สองโมเดลอิสระเห็นตรงกัน (ยังไม่ใช่ข้อสรุปแน่ชัด — ต้องให้ผู้ใช้ฟังช่วง ~66–71 s ยืนยัน และ 8 ตัวที่ต่างจากทั้งคู่ยังไม่ได้ตรวจ)
+  - SOME vs RMVPE ทั้งเพลง: mean|d| = 1.79 st, ±1 st = 79%, ต่าง octave 73/796 โน้ต
+- แนวทางสำหรับ Phase 2: ใช้ f0 ensemble (RMVPE + crepe) เป็นตัวตัดสิน octave ของโน้ตจาก SOME (แก้โน้ตที่ median f0 ต่างจากโน้ต ≈ ±12 st ให้ตรง octave ของ f0) และ RMVPE เร็วกว่ามากจึงเหมาะเป็น f0 หลัก
