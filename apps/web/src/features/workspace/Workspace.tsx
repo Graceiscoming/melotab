@@ -33,6 +33,7 @@ export function Workspace() {
   const [exporting, setExporting] = useState(false)
   const [panel, setPanel] = useState<'' | 'sens' | 'history'>('')
   const timeEl = useRef<HTMLSpanElement>(null)
+  const seekEl = useRef<HTMLInputElement>(null)
 
   const tracks: TrackName[] = ['mix', 'vocals', 'instrumental',
     ...(song?.meta.karaoke ? (['lead', 'backing'] as TrackName[]) : []),
@@ -66,11 +67,20 @@ export function Workspace() {
     let raf = 0
     const loop = () => {
       if (timeEl.current) timeEl.current.textContent = `${fmt(tr.getTime())} / ${fmt(tr.duration || song?.source.duration || 0)}`
+      const sk = seekEl.current
+      if (sk && document.activeElement !== sk) { sk.max = String(tr.duration || song?.source.duration || 0); sk.value = String(tr.getTime()) }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
   }, [tr, song?.source.duration])
+
+  /** กระโดดไปเวลา t (วินาที): ย้ายเพลง + เลื่อน piano roll ตาม + เปิด "ตามเพลง" กลับ (ไม่งั้นหน้าจอค้างที่เดิม) */
+  function seekTo(t: number) {
+    tr.seek(t)
+    useStore.getState().setView({ follow: true })
+    useStore.getState().requestFocus(t)
+  }
 
   function toggle() {
     if (!ready) return
@@ -107,6 +117,7 @@ export function Workspace() {
       if (mod && e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) st.redo(); else st.undo(); return }
       if (mod && e.code === 'KeyY') { e.preventDefault(); st.redo(); return }
       if (e.code === 'KeyN') { jumpToReview(); return }
+      if (e.code === 'Home') { e.preventDefault(); seekTo(0); return }
       if (st.view.mode !== 'roll') return   // ปุ่มที่เหลือเป็นของตัวแก้ไขแทป (TabView) / Chord Sheet
       if (!id) return
       if (e.code === 'Delete' || e.code === 'Backspace') { e.preventDefault(); st.editNotes((ns) => remove(ns, id), null) }
@@ -176,7 +187,10 @@ export function Workspace() {
 
       <div className="transport">
         <button className="play" onClick={toggle} disabled={!ready} data-testid="play">{playing ? '⏸ หยุด' : '▶ เล่น'}</button>
+        <button onClick={() => seekTo(0)} title="กลับไปต้นเพลง (Home)" data-testid="to-start">⏮</button>
         <span ref={timeEl} className="time" data-testid="time">0:00.0</span>
+        <input ref={seekEl} type="range" className="seekbar" min={0} max={song.source.duration} step={0.05} defaultValue={0} data-testid="seekbar"
+          title="ลากเพื่อไปยังตำแหน่งใดก็ได้ในเพลง" onInput={(e) => seekTo(+(e.target as HTMLInputElement).value)} />
         <label>เสียง <select value={track} onChange={(e) => void changeTrack(e.target.value as TrackName)}>
           {tracks.map((t) => <option key={t} value={t}>{TRACK_LABEL[t]}</option>)}</select></label>
         <label><input type="checkbox" checked={synth} onChange={(e) => setSynth(e.target.checked)} /> เสียงโน้ต (synth)</label>

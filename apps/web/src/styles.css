@@ -128,3 +128,4 @@ table.opts tr.cur { background: #16253a; }
 .pr-mic { display: flex; gap: 24px; align-items: center; margin-top: 8px; min-height: 28px; }
 .bigfret { max-width: 100%; height: auto; background: #181b22; border-radius: 10px; }
 .harmtab { font-family: Consolas, monospace; font-size: 12px; overflow: auto; max-height: 60vh; background: var(--bg); padding: 8px; border-radius: 6px; }
+.seekbar { flex: 1 1 220px; min-width: 160px; max-width: 480px; }

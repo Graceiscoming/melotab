@@ -247,8 +247,8 @@ export function PianoRoll() {
           const next = Math.max(15, Math.min(600, st.view.pxPerSec * (e.deltaY < 0 ? 1.15 : 1 / 1.15)))
           vp.scrollT = tAt - (x - KEY_W) / next
           st.setView({ pxPerSec: next })
-        } else if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-          vp.scrollT += (e.shiftKey ? e.deltaY : e.deltaX) / vp.pxPerSec
+        } else if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.clientY - canvas.getBoundingClientRect().top < TOP) { // เลื่อนล้อบนไม้บรรทัด/แถบท่อนคอร์ด = เลื่อนเวลา
+          vp.scrollT += (e.shiftKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY) ? e.deltaY : e.deltaX) / vp.pxPerSec
           if (st.view.follow) st.setView({ follow: false })
         } else {
           vp.scrollY += e.deltaY
