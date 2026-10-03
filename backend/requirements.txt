@@ -68,3 +68,7 @@ pretty_midi
 # ===== ทดสอบ / วัดความแม่น =====
 pytest
 mir_eval
+
+
+# ===== Export (Phase 5) =====
+pyguitarpro

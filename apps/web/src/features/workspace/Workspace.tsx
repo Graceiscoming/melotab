@@ -4,6 +4,7 @@ import { getTransport } from '../../audio/instance'
 import type { TrackName } from '../../audio/transport'
 import { mergeNext, movePitch, needsReview, nextReview, remove, splitAt } from '../../store/edits'
 import { useStore } from '../../store/store'
+import { ExportDialog } from '../export/ExportDialog'
 import { PianoRoll } from '../pianoroll/PianoRoll'
 import { ChordSheet } from '../sheet/ChordSheet'
 import { TabPanel } from '../tab/TabPanel'
@@ -28,6 +29,7 @@ export function Workspace() {
   const [countIn, setCountIn] = useState(0)
   const [stretching, setStretching] = useState(false)
   const [loopAB, setLoopAB] = useState<{ a: number | null; b: number | null }>({ a: null, b: null })
+  const [exporting, setExporting] = useState(false)
   const [panel, setPanel] = useState<'' | 'sens' | 'history'>('')
   const timeEl = useRef<HTMLSpanElement>(null)
 
@@ -155,8 +157,10 @@ export function Workspace() {
         <span className={saveState === 'error' ? 'err' : 'muted'} data-testid="savestate">{SAVE_LABEL[saveState]}</span>
         <button onClick={() => setPanel(panel === 'sens' ? '' : 'sens')}>ความละเอียดโน้ต</button>
         <button onClick={() => setPanel(panel === 'history' ? '' : 'history')}>เวอร์ชันก่อนหน้า</button>
+        <button className="primary" onClick={() => setExporting(true)} data-testid="export-btn">Export</button>
       </div>
 
+      {exporting && <ExportDialog onClose={() => setExporting(false)} />}
       {panel === 'sens' && <SensitivityPanel onClose={() => setPanel('')} />}
       {panel === 'history' && <HistoryPanel onClose={() => setPanel('')} />}
 

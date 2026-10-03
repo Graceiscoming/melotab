@@ -101,6 +101,7 @@ export function toggleTechnique(st: State, noteId: string, k: TechKey): State {
 export function techniqueMark(t: Techniques | undefined): string {
   if (!t) return ''
   let m = ''
+  if (t.in === 'slide_in') m += '/'
   if (t.on?.includes('bend')) m += 'b'
   if (t.on?.includes('release')) m += 'r'
   if (t.on?.includes('vibrato')) m += '~'
@@ -122,4 +123,21 @@ export function patchEventsOptimistic(events: TabEvent[], notes: Note[], locked:
       const pitch = pitchAt(s, lk.string, lk.fret)
       return { ...e, string: lk.string, fret: lk.fret, pitch, locked: true, warnings: e.warnings.filter((w) => w === 'out_of_block' || w === 'octave_shifted') }
     })
+}
+
+export interface TechSuggestion { techniques: Record<string, Techniques>; bends: Record<string, number>; rejected: { note_id: string; technique: string; reason: string }[]; ornaments: number }
+
+/** รวมเทคนิคที่ระบบเสนอ: ไม่ทับโน้ตที่ผู้ใช้ใส่เทคนิคไว้เอง (คืน State เดิมถ้าไม่มีอะไรเปลี่ยน) */
+export function mergeAutoTechniques(st: State, sug: TechSuggestion): { state: State; added: number; skipped: number } {
+  const techniques = { ...st.techniques }
+  const ids = new Set(st.notes.map((n) => n.id))
+  let added = 0
+  let skipped = 0
+  for (const [id, t] of Object.entries(sug.techniques)) {
+    if (!ids.has(id)) continue
+    if (techniques[id]) { skipped++; continue }
+    techniques[id] = { ...t, ...(sug.bends[id] ? { bend_semitones: sug.bends[id] } : {}) }
+    added++
+  }
+  return { state: added ? { ...st, techniques } : st, added, skipped }
 }

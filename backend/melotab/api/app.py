@@ -22,8 +22,11 @@ from ..cache import StageCache
 from ..jobs.manager import Job, JobManager
 from ..lyrics_task import realign, run_lyrics
 from ..retranscribe import retranscribe
+from ..export import render, run_export
+from ..pipeline.ornaments import detect_ornaments, load_f0_midi
 from ..store import ProjectStore
 from .. import tab as tabmod
+from ..tab.techniques import suggest_techniques
 from ..tab.theory import TUNINGS
 
 
@@ -65,6 +68,19 @@ class TabRequest(BaseModel):
 
 class AltRequest(TabRequest):
     note_id: str
+
+
+class ExportRequest(BaseModel):
+    formats: list[str]
+    sections: list[str] | str = []         # [] = ทั้งเพลงเป็นรูปเดียว | "all" = ทุกท่อน | [id ท่อน]
+    custom_range: dict | None = None       # {"start": s, "end": s} เลือกช่วงเอง
+    preset: str = "youtube"                # youtube | ig_portrait | story | a4
+    theme: str = "light"                   # light | dark | transparent
+    scale: int = 1                         # 1–4 (ความละเอียด PNG)
+    show_chords: bool = True
+    show_lyrics: bool = True
+    watermark: str = ""
+    midi_quantized: bool = False
 
 
 class BlocksRequest(BaseModel):
@@ -265,17 +281,59 @@ def create_app(*, store: ProjectStore | None = None, cache: StageCache | None = 
             raise HTTPException(404, "ไม่พบโปรเจกต์")
         return {"ok": True, "events": len(tab["events"])}
 
+    def _with_ornaments(pid: str, notes: list[dict]) -> list[dict]:
+        """ใส่ ornament (ตรวจจากเส้น f0 ตามโน้ตปัจจุบัน) ให้โน้ตแต่ละตัว; ไม่มี f0 = คืนโน้ตเดิม"""
+        f = store.path(pid) / "analysis" / "f0.npz"
+        if not f.exists():
+            return notes
+        t, m, hop = load_f0_midi(f)
+        orn = detect_ornaments(notes, t, m, hop)
+        return [{**n, "ornaments": orn.get(n["id"], [])} for n in notes]
+
     @app.post("/projects/{pid}/tab/generate")
     def tab_generate(pid: str, body: TabRequest) -> dict:
         notes = body.notes if body.notes is not None else _song_or_404(pid)["notes"]
+        notes = _with_ornaments(pid, notes)
         res = tabmod.generate_tab(notes, _check_settings(body.settings), body.locked)
         res["locked"] = body.locked
         store.save_tab(pid, res)
         return res
 
+    @app.post("/projects/{pid}/export")
+    def export_project(pid: str, body: ExportRequest) -> dict:
+        song = _song_or_404(pid)
+        if body.preset not in render.PRESETS or body.theme not in render.THEMES:
+            raise HTTPException(422, "preset/theme ไม่รู้จัก")
+        try:
+            tab = store.tab(pid)
+            return run_export(store.path(pid), song, tab, lambda st: store.stem_path(pid, st), body.model_dump())
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+
+    @app.get("/projects/{pid}/exports")
+    def list_exports(pid: str) -> list[dict]:
+        d = store.path(pid) / "exports"
+        return [{"name": f.name, "size": f.stat().st_size} for f in sorted(d.iterdir())] if d.exists() else []
+
+    @app.get("/projects/{pid}/exports/{name}")
+    def get_export(pid: str, name: str):
+        f = store.path(pid) / "exports" / Path(name).name          # กัน path traversal
+        if not f.is_file():
+            raise HTTPException(404, "ไม่พบไฟล์")
+        return FileResponse(f, filename=f.name)
+
+    @app.post("/projects/{pid}/tab/techniques/auto")
+    def tab_techniques_auto(pid: str, body: TabRequest) -> dict:
+        """ข้อเสนอเทคนิคอัตโนมัติจาก ornament ของเสียงร้อง (ไม่เขียนทับอะไร — UI เป็นคนเลือกรวม)"""
+        notes = _with_ornaments(pid, body.notes if body.notes is not None else _song_or_404(pid)["notes"])
+        res = tabmod.generate_tab(notes, _check_settings(body.settings), body.locked)
+        out = suggest_techniques(res["events"], notes)
+        out["ornaments"] = sum(len(n.get("ornaments", [])) for n in notes)
+        return out
+
     @app.post("/projects/{pid}/tab/alternatives")
     def tab_alternatives(pid: str, body: AltRequest) -> list[dict]:
-        notes = body.notes if body.notes is not None else _song_or_404(pid)["notes"]
+        notes = _with_ornaments(pid, body.notes if body.notes is not None else _song_or_404(pid)["notes"])
         return tabmod.alternatives(notes, _check_settings(body.settings), body.locked, body.note_id)
 
     @app.post("/projects/{pid}/tab/blocks")

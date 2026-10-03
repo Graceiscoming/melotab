@@ -1,4 +1,5 @@
 import type { Alternative, BlocksResponse, Block, F0Curve, FretPos, JobInfo, KeySuggestion, Note, ProjectFull, ProjectMeta, Song, TabResult, TabSettings } from '../types'
+import type { TechSuggestion } from '../tab/ops'
 
 export const API = (import.meta.env.VITE_API as string | undefined) ?? 'http://localhost:8000'
 
@@ -42,6 +43,9 @@ export const api = {
     post(`/projects/${encodeURIComponent(id)}/tab/generate`, { settings, locked, notes }).then(j<TabResult>),
   alternatives: (id: string, noteId: string, settings: TabSettings, locked: Record<string, FretPos>, notes: Note[]) =>
     post(`/projects/${encodeURIComponent(id)}/tab/alternatives`, { note_id: noteId, settings, locked, notes }).then(j<Alternative[]>),
+  exportProject: (id: string, body: unknown) => post(`/projects/${encodeURIComponent(id)}/export`, body).then(j<{ dir: string; files: { name: string; size: number; format: string }[]; skipped: { format: string; reason: string }[] }>),
+  autoTechniques: (id: string, settings: TabSettings, locked: Record<string, FretPos>, notes: Note[]) =>
+    post(`/projects/${encodeURIComponent(id)}/tab/techniques/auto`, { settings, locked, notes }).then(j<TechSuggestion>),
   blocks: (id: string, body: { system: string; transpose: number; capo: number; tuning: string; selected: Block[]; notes: Note[] }) =>
     post(`/projects/${encodeURIComponent(id)}/tab/blocks`, body).then(j<BlocksResponse>),
   suggestKeys: (id: string, settings: Partial<TabSettings>, notes: Note[]) =>

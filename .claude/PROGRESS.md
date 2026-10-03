@@ -1,11 +1,11 @@
 # สถานะโปรเจกต์ MeloTab (เขียนทับทุกครั้งที่จบงาน)
 
 **อัปเดตล่าสุด**: 2026-10-04
-**Phase ปัจจุบัน**: Phase 5 (เทคนิคกีตาร์ + Export) ยังไม่เริ่ม — Phase 0–4 จบแล้ว
+**Phase ปัจจุบัน**: Phase 6 (ขัดเกลา & ฟีเจอร์เสริม) ยังไม่เริ่ม — Phase 0–5 จบแล้ว
 
 ## ทำต่อ (session หน้า)
-- เริ่ม Phase 5: ก่อนเริ่มเช็กโมเดล/ไลบรารีล่าสุด; ornament detection → slide/bend/hammer/pull/vibrato, Export PNG/SVG/PDF/MIDI/MusicXML/GP
-- ค้างจาก Phase 4: ทดสอบคอร์ด/ท่อน/เนื้อกับ ground truth จริง, forced alignment จริง (WhisperX ชน torch), time signature/key change ตรวจกับเพลงยาก
+- เริ่ม Phase 6: Tauri packaging (ตัวติดตั้ง Windows), Model Manager, TensorRT/ONNX, Practice Mode, Harmony generator, Fretboard animation, Batch mode, Video export
+- ค้างจาก Phase 4–5: วัดคอร์ด/ท่อน/เนื้อ/ornament กับ ground truth จริง, เปิดไฟล์ .gp5/.musicxml ใน Guitar Pro/MuseScore จริงเพื่อยืนยัน, โน้ตสากล+เลขนิ้วในรูป export, Export ช่วงเองด้วยการลากบน timeline (ตอนนี้ API รองรับ custom_range แต่ UI ยังไม่มี)
 
 ## ทำเสร็จแล้ว
 - [x] เขียนแผนออกแบบ `plan.md` (25 หัวข้อ + ภาคผนวก)
@@ -49,7 +49,7 @@
 - [x] Phase 2 — ความแม่นยำ (สำคัญสุด) (ยังไม่ได้วัด Note F1 กับ ground truth จริง ต้องมี MIDI ที่แกะมือ)
 - [x] Phase 3 — Tab Engine + Editor (น้ำหนักต้นทุน/ความยากยังไม่ปรับกับนักกีตาร์จริง; editor ยังขาด time-nudge/ripple/คลิกขวา/finger)
 - [x] Phase 4 — ทฤษฎีดนตรีครบ + Chord Sheet + Metronome (คอร์ด/ท่อน/เนื้อยังไม่วัดกับ ground truth; ไม่ใช้ allin1/WhisperX)
-- [ ] Phase 5 — เทคนิคกีตาร์ + Export
+- [x] Phase 5 — เทคนิคกีตาร์ + Export (heuristic ยังไม่วัดกับ ground truth; GP5/MusicXML ยังไม่เปิดใน Guitar Pro/MuseScore จริง)
 - [ ] Phase 6 — ขัดเกลา & ฟีเจอร์เสริม
 
 ## Blocker / คำถามค้าง

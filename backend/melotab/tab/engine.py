@@ -8,7 +8,7 @@ state ของ DP = (ตำแหน่งที่เลือก, anchor ข�
 ข้อจำกัดที่ตั้งใจ (ต้องรู้):
 - น้ำหนักต้นทุนเป็นค่า heuristic ที่ตั้งเอง ยังไม่ได้ปรับกับนักกีตาร์จริง — ใช้ปุ่มทางเลือก/แก้มือได้เสมอ
 - โมเดลมือแบบง่าย (anchor เดียว) ไม่แยกนิ้ว 1–4 และยังไม่ใส่ finger ให้
-- ยังไม่ใส่เทคนิค (slide/bend/hammer) — เป็นงานของขั้น technique pass (Phase 5)
+- เทคนิคใส่ด้วย tab/techniques.py (หลังได้ตำแหน่งแล้ว); ที่นี่แค่กันสายเปล่าออกสำหรับโน้ตที่มี vibrato/bend
 - ค่าความยาก/คะแนน 1–10 เป็นดัชนีเชิง heuristic ไม่ใช่มาตรฐาน
 """
 from __future__ import annotations
@@ -231,6 +231,10 @@ def generate_tab(notes: list[dict], settings: TabSettings | dict | None = None, 
     for n in items:
         pitch = n["midi"] + st.transpose
         cands, flags = _candidates(pitch, st, tuning)
+        if cands and any(o.get("type") in ("vibrato", "bend_up") for o in n.get("ornaments", ())):
+            fretted = [c for c in cands if c[1] > 0]
+            if fretted:                                          # vibrato/bend บนสายเปล่าทำไม่ได้ → ตัดออกถ้ามีทางเลือกอื่น
+                cands = fretted
         lk = locked.get(n["id"])
         lock_ok = bool(lk and pitch_at(lk["string"], lk["fret"], tuning, st.capo) == pitch and 0 <= lk["fret"] <= st.max_fret)
         if lock_ok:

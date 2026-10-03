@@ -226,3 +226,8 @@
 ## 2026-10-04 — Phase 4: slow-down ด้วย SoundTouch ล่วงหน้า (ไม่ใช้ playbackRate)
 - `AudioBufferSourceNode.playbackRate` เปลี่ยน pitch → ใช้ soundtouchjs ยืดเวลาทั้ง buffer ครั้งเดียว (cache ต่อ stem+rate) แล้วเล่นปกติ; ตัวจับเวลา/schedule synth+click คิดเวลาเพลง = ctx × rate
 - ผลวัด (song01 48.8 s, rate 0.5): buffer 96.7 s (2.0×); ข้อเสีย: ครั้งแรกต้องรอประมวลผล + กิน RAM เพิ่มต่อความเร็ว; ยังไม่ได้ฟังคุณภาพเสียงจริง
+
+## 2026-10-04 — Phase 5: ornament → เทคนิค และ export
+- ตรวจ ornament จาก f0 ด้วยกฎ (ไม่ใช้โมเดล): vibrato = สั่น 3.5–9 Hz ≥35 cents p-p; scoop ≥70 cents; bend ไต่ ≥60 cents ทางเดียว; slide vs legato แบ่งที่ช่วงเปลี่ยนพิทช์ 70 ms. ผลบน song02: 543 ornament/807 โน้ต — ยังไม่มี ground truth จึงเป็นข้อเสนอที่ผู้ใช้ตรวจเสมอ
+- Export รูปวาดเอง (รายการคำสั่ง → SVG + PIL) แทน alphaTab/resvg: ไม่เพิ่ม dependency หนัก, SVG/PNG/PDF ได้ layout เดียวกัน; GP เขียนเป็น GP5 ด้วย pyguitarpro (GP8/.gp เป็นฟอร์แมตปิด)
+- ความยาวโน้ตใน MusicXML/GP ปัดลงเป็นค่ามาตรฐาน + พัก (ไม่ใช้ tie) เพื่อให้ทุกห้องรวมความยาวถูกเสมอ — แลกกับ sustain ที่หายไปเล็กน้อย

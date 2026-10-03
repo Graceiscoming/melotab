@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../api/client'
 import { useStore } from '../../store/store'
-import { toggleLock, toggleTechnique, lockAt, TUNINGS, TUNING_LABEL, type TechKey } from '../../tab/ops'
+import { mergeAutoTechniques, toggleLock, toggleTechnique, lockAt, TUNINGS, TUNING_LABEL, type TechKey } from '../../tab/ops'
 import { pcOf, scalePcs } from '../../theory/notes'
 import type { Alternative, Block, KeyOption, KeySuggestion, TabEvent } from '../../types'
 import { Fretboard } from './Fretboard'
@@ -25,6 +25,7 @@ export function TabPanel() {
   const [coverage, setCoverage] = useState<number | null>(null)
   const [custom, setCustom] = useState({ min: 5, max: 9 })
   const [alts, setAlts] = useState<Alternative[] | null>(null)
+  const [autoMsg, setAutoMsg] = useState('')
   const [suggest, setSuggest] = useState<KeySuggestion | 'loading' | null>(null)
 
   const notes = song?.notes
@@ -60,6 +61,16 @@ export function TabPanel() {
     if (!currentId || !notes || !selEvent) return
     try { setAlts(await api.alternatives(currentId, selEvent.note_id, S, locked, notes)) } catch (e) { useStore.getState().setError(String(e)) }
   }
+  async function autoTech() {
+    if (!currentId || !notes) return
+    setAutoMsg('กำลังตรวจ ornament…')
+    try {
+      const sug = await api.autoTechniques(currentId, S, locked, notes)
+      let r = { added: 0, skipped: 0 }
+      edit((st) => { const m = mergeAutoTechniques(st, sug); r = m; return m.added ? m.state : null })
+      setAutoMsg(`ใส่เทคนิค ${r.added} โน้ต (ข้ามที่คุณใส่เองแล้ว ${r.skipped}, ตรวจพบ ornament ${sug.ornaments}, ทำไม่ได้จริง ${sug.rejected.length})`)
+    } catch (e) { setAutoMsg(''); useStore.getState().setError(String(e)) }
+  }
   async function loadSuggest() {
     if (!currentId || !notes) return
     setSuggest('loading')
@@ -84,7 +95,9 @@ export function TabPanel() {
         <div className="row">
           <button className="primary" onClick={() => void useStore.getState().regenerateTab()} disabled={tabBusy} data-testid="gen-tab">{tabBusy ? 'กำลังสร้าง…' : tab ? 'สร้างแทปใหม่' : 'สร้างแทป'}</button>
           <button onClick={() => void loadSuggest()} data-testid="suggest-btn">แนะนำคีย์ / Capo</button>
+          <button onClick={() => void autoTech()} disabled={!tab} title="แปลงลูกคอเสียงร้อง (vibrato/สไลด์/ไต่เสียง/ลากต่อ) เป็น ~ / b h p slide ตามกติกาที่เล่นได้จริง — ไม่ทับที่คุณใส่เอง" data-testid="auto-tech">เทคนิคอัตโนมัติ</button>
         </div>
+        {autoMsg && <div className="muted small" data-testid="auto-tech-msg">{autoMsg}</div>}
         <div className="muted small">โน้ตที่ล็อก (🔒) จะไม่ถูกเปลี่ยนเมื่อสร้างใหม่ — ตำแหน่งที่คุณแก้เองจะถูกล็อกให้อัตโนมัติ</div>
       </section>
 

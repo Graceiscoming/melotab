@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Note, TabEvent, TabSettings } from '../types'
-import { fretFor, lockAt, moveString, patchEventsOptimistic, pitchAt, removeNote, setFret, shiftFret, techniqueMark, toggleLock, toggleTechnique, type State } from './ops'
+import { mergeAutoTechniques, fretFor, lockAt, moveString, patchEventsOptimistic, pitchAt, removeNote, setFret, shiftFret, techniqueMark, toggleLock, toggleTechnique, type State } from './ops'
 
 const S: TabSettings = { transpose: 0, capo: 0, tuning: 'standard', max_fret: 22, blocks: [], block_mode: 'multi', out_of_block: 'octave_shift', preset: 'balanced' }
 const note = (id: string, midi: number): Note => ({ id, midi, name: '', freq: 0, start: 0, end: 1, cents_offset: null, confidence: 0.3, octave_suspect: true, edited: false })
@@ -75,4 +75,19 @@ describe('patchEventsOptimistic', () => {
     expect(out[0]).toMatchObject({ string: 2, fret: 5, pitch: 64, locked: true })
     expect(out[1].locked).toBe(false)                                    // b เคยล็อกแต่ตอนนี้ไม่มีใน locked แล้ว
   })
+})
+
+describe('mergeAutoTechniques', () => {
+  it('ไม่ทับเทคนิคที่ผู้ใช้ใส่เอง และเก็บปริมาณ bend', () => {
+    const base: State = { notes: [note('a', 64), note('b', 66), note('z', 60)], locked: {}, techniques: { a: { on: ['vibrato'] } } }
+    const sug = { techniques: { a: { to_next: 'hammer' }, b: { on: ['bend'] }, gone: { on: ['vibrato'] } }, bends: { b: 2 }, rejected: [], ornaments: 3 }
+    const r = mergeAutoTechniques(base, sug)
+    expect(r.added).toBe(1)
+    expect(r.skipped).toBe(1)
+    expect(r.state.techniques.a).toEqual({ on: ['vibrato'] })
+    expect(r.state.techniques.b).toEqual({ on: ['bend'], bend_semitones: 2 })
+    expect(r.state.techniques.gone).toBeUndefined()
+    expect(mergeAutoTechniques(r.state, sug).state).toBe(r.state)
+  })
+  it('slide_in แสดง / นำหน้า', () => { expect(techniqueMark({ in: 'slide_in', on: ['vibrato'] })).toBe('/~') })
 })
